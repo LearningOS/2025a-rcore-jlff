@@ -38,6 +38,7 @@ pub struct TaskManager {
     /// use inner value to get mutable access
     inner: UPSafeCell<TaskManagerInner>,
 }
+const SYSCALL_NUM: usize = 512;
 
 /// Inner of Task Manager
 pub struct TaskManagerInner {
@@ -54,6 +55,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            syscall_num: [0; SYSCALL_NUM],
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -72,6 +74,18 @@ lazy_static! {
 }
 
 impl TaskManager {
+    fn add_syscall_num(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_num[syscall_id] += 1;
+    }
+
+    fn get_syscall_num(&self, syscall_id: usize) -> isize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        return inner.tasks[current].syscall_num[syscall_id];
+    }
+
     /// Run the first task in task list.
     ///
     /// Generally, the first task in task list is an idle task (we call it zero process later).
@@ -168,4 +182,14 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// Increase syscall num.
+pub fn add_syscall_num(syscall_id: usize) {
+    TASK_MANAGER.add_syscall_num(syscall_id);
+}
+
+/// Get syscall num.
+pub fn get_syscall_num(syscall_id:usize) -> isize {
+    return TASK_MANAGER.get_syscall_num(syscall_id);
 }
