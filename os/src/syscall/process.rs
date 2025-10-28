@@ -68,8 +68,20 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 pub fn sys_trace(trace_request: usize, id: usize, _data: usize) -> isize {
     trace!("kernel: sys_trace");
     match trace_request {
-        0 => {assert!(false); return 0;}
-        1 => {assert!(false); return 1;}
+        0 => {
+            let address = id as *const u8; 
+            unsafe {
+                let ret = *address;
+                return ret as isize;
+            }
+        }
+        1 => {
+            let address = id as *mut u8;
+            unsafe {
+                *address = _data as u8; 
+            }
+            return 0;
+        }
         2 => {return get_syscall_num(id);  }
         _ => {return -1;}
     }
