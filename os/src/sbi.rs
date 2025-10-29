@@ -10,8 +10,8 @@ const SBI_CONSOLE_PUTCHAR: usize = 1;
 /// console getchar sbi call id
 const SBI_CONSOLE_GETCHAR: usize = 2;
 /// shutdown sbi call id
-const SBI_SHUTDOWN: usize = 8;
-
+//const SBI_SHUTDOWN: usize = 8;
+const SBI_SHUTDOWN: usize = 0x53525354;
 /// general sbi call
 #[inline(always)]
 fn sbi_call(which: usize, arg0: usize, arg1: usize, arg2: usize) -> usize {
