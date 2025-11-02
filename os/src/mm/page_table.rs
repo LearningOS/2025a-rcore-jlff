@@ -7,6 +7,22 @@ use bitflags::*;
 
 bitflags! {
     /// page table entry flags
+    /// 上图为 SV39 分页模式下的页表项，其中这 位是物理页号，最低的 位 则是标志位，
+    /// 它们的含义如下
+    /// （请注意，为方便说明，下文我们用 页表项的对应虚拟页面 来表示索引到一个页表项的虚拟页号对应的虚拟页面）：
+
+    /// V(Valid)：仅当位 V 为 1 时，页表项才是合法的；
+    /// R(Read)/W(Write)/X(eXecute)：分别控制索引到这个页表项的对应虚拟页面是否允许读/写/执行；
+    /// U(User)：控制索引到这个页表项的对应虚拟页面是否在 CPU 处于 U 特权级的情况下是否被允许访问；
+    /// G：暂且不理会；
+    /// A(Accessed)：处理器记录自从页表项上的这一位被清零之后，页表项的对应虚拟页面是否被访问过；
+    /// D(Dirty)：处理器记录自从页表项上的这一位被清零之后，页表项的对应虚拟页面是否被修改过。
+    /// 除了 G 外的上述位可以被操作系统设置，只有 A 位和 D 位会被处理器动态地直接设置为 1 ，
+    /// 表示对应的页被访问过或修过（ 注：A 位和 D 位能否被处理器硬件直接修改，取决于处理器的具体实现）。
+    /// 让我们先来实现页表项中的标志位 PTEFlags ：
+    /// 
+    /// bitflags 是一个 Rust 中常用来比特标志位的 crate 。它提供了一个 bitflags! 宏，
+    /// 如上面的代码段所展示的那样，可以将一个 u8 封装成一个标志位的集合类型，支持一些常见的集合运算。
     pub struct PTEFlags: u8 {
         /// Valid
         const V = 1 << 0;
@@ -70,7 +86,7 @@ impl PageTableEntry {
     pub fn executable(&self) -> bool {
         (self.flags() & PTEFlags::X) != PTEFlags::empty()
     }
-    
+
     /// is_user
     pub fn is_user(&self) -> bool {
         (self.flags() & PTEFlags::U) != PTEFlags::empty()
@@ -158,6 +174,8 @@ impl PageTable {
         self.find_pte(vpn).map(|pte| *pte)
     }
     /// get the token from the page table
+    /// PageTable::token 会按照 satp CSR 格式要求 构造一个无符号 64 位无符号整数，
+    /// 使得其 分页模式为 SV39 ，且将当前多级页表的根节点所在的物理页号填充进去。
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
     }
