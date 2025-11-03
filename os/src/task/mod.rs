@@ -14,7 +14,9 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+use crate::config::PAGE_SIZE;
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -50,6 +52,11 @@ struct TaskManagerInner {
 
 lazy_static! {
     /// a `TaskManager` global instance through lazy_static!
+    /// 可以看到，在 TaskManagerInner 中我们使用向量 Vec 来保存任务控制块。
+    /// 在全局任务管理器 TASK_MANAGER 初始化的时候，
+    /// 只需使用 loader 子模块提供的 get_num_app 和 get_app_data 分别获取链接到内核的应用数量和
+    /// 每个应用的 ELF 文件格式的数据，然后依次给每个应用创建任务控制块并加入到向量中即可。
+    /// 我们还将 current_task 设置 为 0 ，于是将从第 0 个应用开始执行。
     pub static ref TASK_MANAGER: TaskManager = {
         println!("init TASK_MANAGER");
         let num_app = get_num_app();
@@ -153,6 +160,84 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    // fn get_current_memory_set(&self) -> &MemorySet {
+    //     let inner = self.inner.exclusive_access();
+    //     let current = inner.current_task;
+    //     let current_task = &inner.tasks[current];
+    //     &(current_task.memory_set)
+
+    // }
+    // mmap 在 Linux 中主要用于在内存中映射文件， 本次实验简化它的功能，仅用于申请内存。
+
+    // 请实现 mmap 和 munmap 系统调用，mmap 定义如下：
+
+    // fn sys_mmap(start: usize, len: usize, prot: usize) -> isize
+    // syscall ID：222
+
+    // 申请长度为 len 字节的物理内存（不要求实际物理内存位置，可以随便找一块），将其映射到 start 开始的虚存，内存页属性为 prot
+
+    // 参数：
+    // start 需要映射的虚存起始地址，要求按页对齐
+
+    // len 映射字节长度，可以为 0
+
+    // prot：第 0 位表示是否可读，第 1 位表示是否可写，第 2 位表示是否可执行。其他位无效且必须为 0
+
+    // 返回值：执行成功则返回 0，错误返回 -1
+
+    // 说明：
+    // 为了简单，目标虚存区间要求按页对齐，len 可直接按页向上取整，不考虑分配失败时的页回收。
+
+    // 可能的错误：
+    // start 没有按页大小对齐
+
+    // prot & !0x7 != 0 (prot 其余位必须为0)
+
+    // prot & 0x7 = 0 (这样的内存无意义)
+
+    // [start, start + len) 中存在已经被映射的页
+
+    // 物理内存不足
+    fn mmap(&self, start: usize, len: usize, prot: usize) -> isize {
+        if start % PAGE_SIZE != 0 {
+            return -1
+        }
+        if prot & !07 != 0 || prot & 07 == 0 {
+            return -1
+        }
+        let mut map_perm = MapPermission::U;
+        if prot & 0x1 != 0 {
+            map_perm |= MapPermission::R;
+        }
+        if prot & 0x2 != 0 {
+            map_perm |= MapPermission::W;
+        }
+        if prot & 0x4 != 0 {
+            map_perm |= MapPermission::X;
+        }
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.insert_framed_area(start.into(), (start+len).into(), map_perm);
+        0
+    }
+
+    ///
+    /// syscall ID：215
+
+    /// 取消到 [start, start + len) 虚存的映射
+
+    /// 参数和返回值请参考 mmap
+
+    ///说明：
+    /// 为了简单，参数错误时不考虑内存的恢复和回收。
+
+    /// 可能的错误：
+    ///[start, start + len) 中存在未被映射的虚存。
+    fn munmap(&self, _start: usize, _len:usize) -> isize {
+        0
+    }
+
 }
 
 /// Run the first task in task list.
@@ -201,4 +286,14 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// mmap
+pub fn mmap(start: usize, len: usize, prot: usize) -> isize {
+    TASK_MANAGER.mmap(start, len, prot)
+}
+
+/// munmap
+pub fn munmap(start: usize, len: usize) -> isize { 
+    TASK_MANAGER.munmap(start, len)
 }

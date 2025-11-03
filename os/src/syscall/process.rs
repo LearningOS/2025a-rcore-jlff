@@ -2,6 +2,7 @@
 
 use crate::{mm::{PageTable, PageTableEntry, PhysAddr, VirtAddr, VirtPageNum}, task::{change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}};
 use crate::mm::PhysPageNum;
+use crate::task::{mmap, munmap};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -32,18 +33,28 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     -1
 }
 
-pub fn v2p(vaddr: usize) -> Option<PhysAddr> {
-    let page_table : PageTable = PageTable::from_token(current_user_token());
-    let vppn: VirtPageNum = VirtAddr::from(vaddr).floor().into();
-    let entry: Option<PageTableEntry> = page_table.translate(vppn);
-    if entry.is_none() || !entry.unwrap().is_valid() || !entry.unwrap().is_user() {
-        return None;
-    }
-    let ppn: PhysPageNum = entry.unwrap().ppn();
-    let mut phyaddr:usize = PhysAddr::from(ppn).into();
-    phyaddr += VirtAddr::from(vaddr).page_offset();
-    Some(PhysAddr::from(phyaddr))
-}
+// pub fn v2p(vaddr: usize) -> Option<PhysAddr> {
+//     let page_table : PageTable = PageTable::from_token(current_user_token());
+//     let vppn: VirtPageNum = VirtAddr::from(vaddr).floor().into();
+//     let entry: Option<PageTableEntry> = page_table.translate(vppn);
+//     if entry.is_none() || !entry.unwrap().is_valid() || !entry.unwrap().is_user() {
+//         return None;
+//     }
+//     let ppn: PhysPageNum = entry.unwrap().ppn();
+//     let mut phyaddr:usize = PhysAddr::from(ppn).into();
+//     phyaddr += VirtAddr::from(vaddr).page_offset();
+//     Some(PhysAddr::from(phyaddr))
+// }
+
+// pub fn can_write(vaddr: usize) -> bool {
+//     let page_table : PageTable = PageTable::from_token(current_user_token());
+//     let vppn: VirtPageNum = VirtAddr::from(vaddr).floor().into();
+//     let entry: Option<PageTableEntry> = page_table.translate(vppn);
+//     if entry.is_none() || !entry.unwrap().writable() {
+//         return false
+//     }
+//     return true
+// }
 
 /// TODO: Finish sys_trace to pass testcase
 /// HINT: You might reimplement it with virtual memory management.
@@ -57,11 +68,22 @@ pub fn v2p(vaddr: usize) -> Option<PhysAddr> {
 
 pub fn sys_trace(trace_request: usize, id: usize, _data: usize) -> isize {
     trace!("kernel: sys_trace");
-    let phaddr:Option<PhysAddr> = v2p(id);
-    if phaddr.is_none() {
+    let vaddr:usize = id;
+    let page_table : PageTable = PageTable::from_token(current_user_token());
+    let vppn: VirtPageNum = VirtAddr::from(vaddr).floor().into();
+    let entry: Option<PageTableEntry> = page_table.translate(vppn);
+    if entry.is_none() || !entry.unwrap().is_valid() || !entry.unwrap().is_user() {
         return -1;
     }
-    let addr:usize = phaddr.unwrap().into();
+    if trace_request == 0 && !entry.unwrap().readable() {
+        return -1;
+    }
+    if trace_request == 1 && !entry.unwrap().writable() {
+        return -1;
+    }
+    let ppn: PhysPageNum = entry.unwrap().ppn();
+    let mut addr:usize = PhysAddr::from(ppn).into();
+    addr += VirtAddr::from(vaddr).page_offset();
     match trace_request {
         0 => {
             let address = addr as *const u8; 
@@ -115,15 +137,23 @@ pub fn sys_trace(trace_request: usize, id: usize, _data: usize) -> isize {
 
 // 物理内存不足
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
+    trace!("kernel: sys_mmap");
+    //KERNEL_SPACE.exclusive_access().area
+    // let mut inner = TASK_MANAGER.inner.exclusive_access();
+    // KERNEL_SPACE.exclusive_access().insert_framed_areainsert_framed_areainsert_framed_area(
+    //         start.into(),
+    //         (start + len).into(),
+    //         MapPermission::R | MapPermission::U | MapPermission::X | MapPermission::W
+    //     );
+    //     0
+    mmap(start, len, prot)
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    trace!("kernel: sys_munmap");
+    munmap(start, len)
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
