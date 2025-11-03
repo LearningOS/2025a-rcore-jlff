@@ -404,6 +404,14 @@ impl MapArea {
             map_perm,
         }
     }
+    /// 对于第 4 行的 map_one 来说，在虚拟页号 vpn 已经确定的情况下，
+    /// 它需要知道要将一个怎么样的页表项插入多级页表。 
+    /// 页表项的标志位来源于当前逻辑段的类型为 MapPermission 的统一配置，只需将其转换为 PTEFlags ；
+    /// 而页表项的 物理页号则取决于当前逻辑段映射到物理内存的方式：
+    /// 
+    /// 当以恒等映射 Identical 方式映射的时候，物理页号就等于虚拟页号；
+    /// 当以 Framed 方式映射的时候，需要分配一个物理页帧让当前的虚拟页面可以映射过去，此时页表项中的物理页号自然就是 这个被分配的物理页帧的物理页号。此时还需要将这个物理页帧挂在逻辑段的 data_frames 字段下。
+    /// 当确定了页表项的标志位和物理页号之后，即可调用多级页表 PageTable 的 map 接口来插入键值对。
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let ppn: PhysPageNum;
         match self.map_type {
@@ -484,7 +492,9 @@ pub enum MapType {
 
 bitflags! {
     /// map permission corresponding to that in pte: `R W X U`
-    /// MapPermission 表示控制该逻辑段的访问方式，它是页表项标志位 PTEFlags 的一个子集，仅保留 U/R/W/X 四个标志位，因为其他的标志位仅与硬件的地址转换机制细节相关，这样的设计能避免引入错误的标志位。
+    /// MapPermission 表示控制该逻辑段的访问方式，
+    /// 它是页表项标志位 PTEFlags 的一个子集，仅保留 U/R/W/X 四个标志位，
+    /// 因为其他的标志位仅与硬件的地址转换机制细节相关，这样的设计能避免引入错误的标志位。
     pub struct MapPermission: u8 {
         ///Readable
         const R = 1 << 1;
