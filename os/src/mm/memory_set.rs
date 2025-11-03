@@ -31,7 +31,9 @@ extern "C" {
 lazy_static! {
     /// The kernel's initial memory mapping(kernel address space)
     /// 我们创建内核地址空间的全局实例：
-    /// 从之前对于 lazy_static! 宏的介绍可知， KERNEL_SPACE 在运行期间它第一次被用到时才会实际进行初始化，而它所 占据的空间则是编译期被放在全局数据段中。
+    /// 从之前对于 lazy_static! 宏的介绍可知， 
+    /// KERNEL_SPACE 在运行期间它第一次被用到时才会实际进行初始化，
+    /// 而它所 占据的空间则是编译期被放在全局数据段中。
     ///  Arc<UPSafeCell<_>> 同时带来 Arc<T> 提供的共享 引用，和 UPSafeCell<T> 提供的互斥访问。
     pub static ref KERNEL_SPACE: Arc<UPSafeCell<MemorySet>> =
         Arc::new(unsafe { UPSafeCell::new(MemorySet::new_kernel()) });
@@ -83,6 +85,11 @@ impl MemorySet {
         );
     }
 
+    /// 
+    pub fn remove_framed_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) {
+        self.remove(MapArea::new(start_va, end_va, MapType::Framed, MapPermission { bits: 0 }));
+    }
+
     /// push 方法可以在当前地址空间插入一个新的逻辑段 map_area ，
     /// 如果它是以 Framed 方式映射到 物理内存，
     /// 还可以可选地在那些被映射到的物理页帧上写入一些初始化数据 data ；
@@ -92,6 +99,11 @@ impl MemorySet {
             map_area.copy_data(&mut self.page_table, data);
         }
         self.areas.push(map_area);
+    }
+    
+    fn remove(&mut self, mut map_area:MapArea) {
+        map_area.unmap(&mut self.page_table);
+        //self.areas.p
     }
     /// Mention that trampoline is not collected by areas.
     fn map_trampoline(&mut self) {
@@ -370,6 +382,29 @@ impl MemorySet {
             false
         }
     }
+    
+    fn addr_in_range(&self, addr:usize, len:usize, range: VPNRange) -> bool {
+        info!("addr_in_range?: {:#x}, {:#x} [{:#x}, {:#x})", 
+                addr, 
+                len,
+                usize::from(range.get_start()), 
+                usize::from(range.get_end()));
+        addr < VirtAddr::from(range.get_end()).into() &&
+        addr + len >= VirtAddr::from(range.get_start()).into()
+    }
+    /// 
+    pub fn is_mapped(&self, start: usize, len:usize) -> bool {
+        let count = self.areas.
+        iter().
+        find(|area| 
+            self.addr_in_range(start, len, area.vpn_range)
+        )
+        .into_iter()
+        .count();
+        info!("count {}", count);
+        count > 0
+    }
+
 }
 /// map area structure, controls a contiguous piece of virtual memory
 /// 逻辑段：一段连续地址的虚拟内存
@@ -410,7 +445,9 @@ impl MapArea {
     /// 而页表项的 物理页号则取决于当前逻辑段映射到物理内存的方式：
     /// 
     /// 当以恒等映射 Identical 方式映射的时候，物理页号就等于虚拟页号；
-    /// 当以 Framed 方式映射的时候，需要分配一个物理页帧让当前的虚拟页面可以映射过去，此时页表项中的物理页号自然就是 这个被分配的物理页帧的物理页号。此时还需要将这个物理页帧挂在逻辑段的 data_frames 字段下。
+    /// 当以 Framed 方式映射的时候，需要分配一个物理页帧让当前的虚拟页面可以映射过去，
+    /// 此时页表项中的物理页号自然就是 这个被分配的物理页帧的物理页号。
+    /// 此时还需要将这个物理页帧挂在逻辑段的 data_frames 字段下。
     /// 当确定了页表项的标志位和物理页号之后，即可调用多级页表 PageTable 的 map 接口来插入键值对。
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let ppn: PhysPageNum;

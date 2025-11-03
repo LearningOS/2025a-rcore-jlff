@@ -218,6 +218,9 @@ impl TaskManager {
         }
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
+        if inner.tasks[current].memory_set.is_mapped(start, len) {
+            return -1;
+        }
         inner.tasks[current].memory_set.insert_framed_area(start.into(), (start+len).into(), map_perm);
         0
     }
@@ -234,7 +237,14 @@ impl TaskManager {
 
     /// 可能的错误：
     ///[start, start + len) 中存在未被映射的虚存。
-    fn munmap(&self, _start: usize, _len:usize) -> isize {
+    fn munmap(&self, start: usize, len:usize) -> isize {
+        
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        if !inner.tasks[current].memory_set.is_mapped(start, len) {
+            return -1
+        }
+        inner.tasks[current].memory_set.remove_framed_area(start.into(), (start+len).into());
         0
     }
 
