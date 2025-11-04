@@ -3,6 +3,7 @@
 use crate::{mm::{PageTable, PageTableEntry, PhysAddr, VirtAddr, VirtPageNum}, task::{change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}};
 use crate::mm::PhysPageNum;
 use crate::task::{mmap, munmap};
+use crate::timer::get_time_us;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -28,9 +29,25 @@ pub fn sys_yield() -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    -1
+    let us = get_time_us();
+    let vaddr:usize = ts as usize;
+    let page_table : PageTable = PageTable::from_token(current_user_token());
+    let vppn: VirtPageNum = VirtAddr::from(vaddr).floor().into();
+    let entry: Option<PageTableEntry> = page_table.translate(vppn);
+    assert!(entry.is_some() && entry.unwrap().is_valid() && entry.unwrap().is_user());
+    let ppn: PhysPageNum = entry.unwrap().ppn();
+    let mut addr:usize = PhysAddr::from(ppn).into();
+    addr += VirtAddr::from(vaddr).page_offset();
+    unsafe {
+        let address: *mut TimeVal = addr as *mut TimeVal;
+        *address = TimeVal {
+            sec: us / 1_000_000,
+            usec: us % 1_000_000,
+        };
+    }
+    0    
 }
 
 /// TODO: Finish sys_trace to pass testcase
