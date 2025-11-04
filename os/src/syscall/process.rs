@@ -33,29 +33,6 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     -1
 }
 
-// pub fn v2p(vaddr: usize) -> Option<PhysAddr> {
-//     let page_table : PageTable = PageTable::from_token(current_user_token());
-//     let vppn: VirtPageNum = VirtAddr::from(vaddr).floor().into();
-//     let entry: Option<PageTableEntry> = page_table.translate(vppn);
-//     if entry.is_none() || !entry.unwrap().is_valid() || !entry.unwrap().is_user() {
-//         return None;
-//     }
-//     let ppn: PhysPageNum = entry.unwrap().ppn();
-//     let mut phyaddr:usize = PhysAddr::from(ppn).into();
-//     phyaddr += VirtAddr::from(vaddr).page_offset();
-//     Some(PhysAddr::from(phyaddr))
-// }
-
-// pub fn can_write(vaddr: usize) -> bool {
-//     let page_table : PageTable = PageTable::from_token(current_user_token());
-//     let vppn: VirtPageNum = VirtAddr::from(vaddr).floor().into();
-//     let entry: Option<PageTableEntry> = page_table.translate(vppn);
-//     if entry.is_none() || !entry.unwrap().writable() {
-//         return false
-//     }
-//     return true
-// }
-
 /// TODO: Finish sys_trace to pass testcase
 /// HINT: You might reimplement it with virtual memory management.
 /// 引入虚存机制后，原来内核的 sys_get_time 和 sys_trace 函数实现就无效了。请你重写这两个系统调用的代码，恢复其正常功能。
@@ -99,7 +76,9 @@ pub fn sys_trace(trace_request: usize, id: usize, _data: usize) -> isize {
             }
             return 0;
         }
-        2 => {return -1; }
+        2 => { panic!("note implement"); 
+        //return -1; 
+        }
         _ => {return -1;}
     }
 }

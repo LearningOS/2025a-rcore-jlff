@@ -105,7 +105,11 @@ impl MemorySet {
         map_area.unmap(&mut self.page_table);
         //self.areas.p
     }
+
     /// Mention that trampoline is not collected by areas.
+    /// 这里我们为了实现方便并没有新增逻辑段 MemoryArea
+    ///  而是直接在多级页表中插入一个从地址空间的最高虚拟页面映射到跳板汇编代码所在的物理页帧的键值对，
+    /// 访问权限与代码段相同，即 RX （可读可执行）。
     fn map_trampoline(&mut self) {
         self.page_table.map(
             VirtAddr::from(TRAMPOLINE).into(),

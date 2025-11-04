@@ -53,6 +53,18 @@ pub fn enable_timer_interrupt() {
     }
 }
 
+
+// 由于应用的 Trap 上下文不在内核地址空间，
+// 因此我们调用 current_trap_cx 来获取当前应用的 Trap 上下文的可变引用而不是像之前那样作为参数传入 trap_handler 。
+// 至于 Trap 处理的过程则没有发生什么变化。
+
+// 注意到，在 trap_handler 的开头还调用 set_kernel_trap_entry 将 stvec 修改为同模块下另一个函数 trap_from_kernel 的地址。
+// 这就是说，一旦进入内核后再次触发到 S态 Trap，则硬件在设置一些 CSR 寄存器之后，
+// 会跳过对通用寄存器的保存过程，直接跳转到 trap_from_kernel 函数，在这里直接 panic 退出。
+// 这是因为内核和应用的地址空间分离之后，U态 –> S态 与 S态 –> S态 的 Trap 上下文保存与恢复实现方式/Trap 处理逻辑有很大差别。
+// 这里为了简单起见，弱化了 S态 –> S态的 Trap 处理过程：直接 panic 。
+
+// 在 trap_handler 完成 Trap 处理之后，我们需要调用 trap_return 返回用户态：
 /// trap handler
 #[no_mangle]
 pub fn trap_handler() -> ! {

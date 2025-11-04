@@ -35,6 +35,11 @@ pub struct TaskControlBlock {
 
 impl TaskControlBlock {
     /// get the trap context
+    /// 此处需要说明的是，返回 'static 的可变引用和之前一样可以看成一个绕过 unsafe 的裸指针；
+    /// 而 PhysPageNum::get_mut 是一个泛型函数，
+    /// 由于我们已经声明了总体返回 TrapContext 的可变引用，
+    /// 则Rust编译器会给 get_mut 泛型函数针对具体类型 TrapContext 的情况生成一个特定版本的 get_mut 函数实现。
+    /// 在 get_trap_cx 函数中则会静态调用``get_mut`` 泛型函数的特定版本实现。
     pub fn get_trap_cx(&self) -> &'static mut TrapContext {
         self.trap_cx_ppn.get_mut()
     }
@@ -57,6 +62,23 @@ impl TaskControlBlock {
     /// 我们难以确定一个已经溢出的栈帧中的哪些位置会先被访问， 
     /// 但总的来说，空洞区域被设置的越大，我们就能越早捕获到这一错误并避免它覆盖其他重要数据。
     /// 由于我们的内核非常简单且内核栈 的大小设置比较宽裕，在当前的设计中我们仅将空洞区域的大小设置为单个页面。
+    /// 
+    /// 
+    /// 第 15 行，解析传入的 ELF 格式数据构造应用的地址空间 memory_set 并获得其他信息；
+    /// 第 16 行，从地址空间 memory_set 中查多级页表找到应用地址空间中的 Trap 上下文实际被放在哪个物理页帧；
+    /// 第 22 行，根据传入的应用 ID app_id 调用在 config 子模块中定义的 kernel_stack_position 
+    /// 找到 应用的内核栈预计放在内核地址空间 KERNEL_SPACE 中的哪个位置，
+    /// 并通过 insert_framed_area 实际将这个逻辑段 加入到内核地址空间中；
+    /// 第 30~32 行，在应用的内核栈顶压入一个跳转到 trap_return 而不是 __restore 的任务上下文，
+    /// 这主要是为了能够支持对该应用的启动并顺利切换到用户地址空间执行。
+    /// 在构造方式上，只是将 ra 寄存器的值设置为 trap_return 的地址。 
+    /// trap_return 是后面要介绍的新版的 Trap 处理的一部分。
+    /// 这里对裸指针解引用成立的原因在于：当前已经进入了内核地址空间，而要操作的内核栈也是在内核地址空间中的；
+    /// 第 33~36 行，用上面的信息来创建并返回任务控制块实例 task_control_block；
+    /// 第 38 行，查找该应用的 Trap 上下文的内核虚地址。
+    /// 由于应用的 Trap 上下文是在应用地址空间而不是在内核地址空间中，
+    /// 我们只能手动查页表找到 Trap 上下文实际被放在的物理页帧，
+    /// 然后通过之前介绍的 在内核地址空间读写特定物理页帧的能力 获得在用户空间的 Trap 上下文的可变引用用于初始化：
     pub fn new(elf_data: &[u8], app_id: usize) -> Self {
         // memory_set with elf program headers/trampoline/trap context/user stack
         let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
