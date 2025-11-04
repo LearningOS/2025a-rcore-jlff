@@ -238,7 +238,9 @@ impl TaskManager {
     /// 可能的错误：
     ///[start, start + len) 中存在未被映射的虚存。
     fn munmap(&self, start: usize, len:usize) -> isize {
-        
+        if start % PAGE_SIZE != 0 {
+            return -1
+        } 
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         if !inner.tasks[current].memory_set.can_munmap(start, len) {
