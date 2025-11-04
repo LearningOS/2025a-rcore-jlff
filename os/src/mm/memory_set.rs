@@ -100,10 +100,12 @@ impl MemorySet {
         }
         self.areas.push(map_area);
     }
-    
+
+    // 1. pagetable
+    // 2. area
     fn remove(&mut self, mut map_area:MapArea) {
         map_area.unmap(&mut self.page_table);
-        //self.areas.p
+        self.areas.retain(|area| area.vpn_range.get_start() != map_area.vpn_range.get_start());
     }
 
     /// Mention that trampoline is not collected by areas.
