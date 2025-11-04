@@ -241,7 +241,7 @@ impl TaskManager {
         
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        if !inner.tasks[current].memory_set.is_mapped(start, len) {
+        if !inner.tasks[current].memory_set.can_munmap(start, len) {
             return -1
         }
         inner.tasks[current].memory_set.remove_framed_area(start.into(), (start+len).into());

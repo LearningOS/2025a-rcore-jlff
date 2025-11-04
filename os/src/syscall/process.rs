@@ -93,8 +93,9 @@ pub fn sys_trace(trace_request: usize, id: usize, _data: usize) -> isize {
             }
             return 0;
         }
-        2 => { panic!("note implement"); 
-        //return -1; 
+        2 => { 
+        //panic!("note implement"); 
+            return -1; 
         }
         _ => {return -1;}
     }
