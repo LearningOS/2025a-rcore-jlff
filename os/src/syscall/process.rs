@@ -4,7 +4,7 @@ use crate::{mm::{PageTable, PageTableEntry, PhysAddr, VirtAddr, VirtPageNum}, ta
 use crate::mm::PhysPageNum;
 use crate::task::{mmap, munmap};
 use crate::timer::get_time_us;
-
+use crate::task::get_syscall_num;
 #[repr(C)]
 #[derive(Debug)]
 pub struct TimeVal {
@@ -94,8 +94,7 @@ pub fn sys_trace(trace_request: usize, id: usize, _data: usize) -> isize {
             return 0;
         }
         2 => { 
-        //panic!("note implement"); 
-            return -1; 
+            return get_syscall_num(id); 
         }
         _ => {return -1;}
     }

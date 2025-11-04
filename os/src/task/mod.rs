@@ -26,6 +26,8 @@ pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
 
+const SYSCALL_NUM: usize = 512;
+
 /// The task manager, where all the tasks are managed.
 ///
 /// Functions implemented on `TaskManager` deals with all task state transitions
@@ -78,6 +80,18 @@ lazy_static! {
 }
 
 impl TaskManager {
+    fn add_syscall_num(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_num[syscall_id] += 1;
+    }
+
+    fn get_syscall_num(&self, syscall_id: usize) -> isize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        return inner.tasks[current].syscall_num[syscall_id];
+    }
+
     /// Run the first task in task list.
     ///
     /// Generally, the first task in task list is an idle task (we call it zero process later).
@@ -308,4 +322,14 @@ pub fn mmap(start: usize, len: usize, prot: usize) -> isize {
 /// munmap
 pub fn munmap(start: usize, len: usize) -> isize { 
     TASK_MANAGER.munmap(start, len)
+}
+
+/// Increase syscall num.
+pub fn add_syscall_num(syscall_id: usize) {
+    TASK_MANAGER.add_syscall_num(syscall_id);
+}
+
+/// Get syscall num.
+pub fn get_syscall_num(syscall_id:usize) -> isize {
+    return TASK_MANAGER.get_syscall_num(syscall_id);
 }
