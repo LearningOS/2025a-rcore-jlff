@@ -40,6 +40,10 @@ fn set_kernel_trap_entry() {
     }
 }
 
+//
+/// 注：我们把 stvec 设置为内核和应用地址空间共享的跳板页面的起始地址 TRAMPOLINE
+/// 而不是编译器在链接时看到的 __alltraps 的地址。
+/// 这是因为启用分页模式之后，内核只能通过跳板页面上的虚拟地址来实际取得 __alltraps 和 __restore 的汇编代码。
 fn set_user_trap_entry() {
     unsafe {
         stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
@@ -69,7 +73,7 @@ pub fn enable_timer_interrupt() {
 #[no_mangle]
 pub fn trap_handler() -> ! {
     set_kernel_trap_entry();
-    let cx = current_trap_cx();
+    let cx: &mut TrapContext = current_trap_cx();
     let scause = scause::read(); // get trap cause
     let stval = stval::read(); // get extra value
     // trace!("into {:?}", scause.cause());
@@ -112,6 +116,12 @@ pub fn trap_handler() -> ! {
 /// set the new addr of __restore asm function in TRAMPOLINE page,
 /// set the reg a0 = trap_cx_ptr, reg a1 = phy addr of usr page table,
 /// finally, jump to new addr of __restore asm function
+/// 
+/// 第 11 行，在 trap_return 的开始处就调用 set_user_trap_entry ，来让应用 Trap 到 S 的时候可以跳转到 __alltraps 。
+/// 第 18 行，展示了计算 __restore 虚地址的过程：
+/// 由于 __alltraps 是对齐到地址空间跳板页面的起始地址 TRAMPOLINE 上的，
+/// 则 __restore 的虚拟地址只需在 TRAMPOLINE 基础上加上 __restore 相对于 __alltraps 的偏移量即可。
+/// 这里 __alltraps 和 __restore 都是指编译器在链接时看到的内核内存布局中的地址。
 pub fn trap_return() -> ! {
     set_user_trap_entry();
     let trap_cx_ptr = TRAP_CONTEXT_BASE;
