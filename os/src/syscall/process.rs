@@ -2,12 +2,10 @@
 use alloc::sync::Arc;
 
 use crate::{
-    loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_str},
-    task::{
+    config::PAGE_SIZE, loader::get_app_data_by_name, mm::{MapPermission, translated_refmut, translated_str}, task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
-    },
+    }
 };
 use crate::timer::get_time_us;
 
@@ -150,21 +148,49 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_mmap",
         current_task().unwrap().pid.0
     );
-    -1
+    if start % PAGE_SIZE != 0 {
+            return -1
+    }
+    if prot & !07 != 0 || prot & 07 == 0 {
+        return -1
+    }
+    let mut map_perm = MapPermission::U;
+    if prot & 0x1 != 0 {
+        map_perm |= MapPermission::R;
+    }
+    if prot & 0x2 != 0 {
+        map_perm |= MapPermission::W;
+    }
+    if prot & 0x4 != 0 {
+        map_perm |= MapPermission::X;
+    }
+    if current_task().unwrap().inner_exclusive_access().memory_set.is_mapped(start, len) {
+        return -1;
+    }
+    current_task().unwrap().inner_exclusive_access().memory_set.insert_framed_area(start.into(), (start+len).into(), map_perm);
+    0
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_munmap",
         current_task().unwrap().pid.0
     );
-    -1
+    if start % PAGE_SIZE != 0 {
+        return -1
+    } 
+
+    if ! current_task().unwrap().inner_exclusive_access().memory_set.can_munmap(start, len) {
+        return -1
+    }
+    current_task().unwrap().inner_exclusive_access().memory_set.remove_area_with_start_vpn(start.into());
+    0
 }
 
 /// change data segment size
