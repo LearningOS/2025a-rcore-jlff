@@ -72,6 +72,20 @@ pub fn sys_exec(path: *const u8) -> isize {
 
 /// If there is not a child process whose pid is same as given, return -1.
 /// Else if there is a child process but it is still running, return -2.
+/// sys_waitpid 是一个立即返回的系统调用，它的返回值语义是：如果当前的进程不存在一个符合要求的子进程，则返回 -1；
+/// 如果至少存在一个，但是其中没有僵尸进程（也即仍未退出）则返回 -2；
+/// 如果都不是的话则可以正常回收并返回回收子进程的 pid 。
+/// 但在编写应用的开发者看来， wait/waitpid 两个辅助函数都必定能够返回一个有意义的结果，要么是 -1，要么是一个正数 PID ，是不存在 -2 这种通过等待即可消除的中间结果的。
+/// 等待的过程由用户库 user_lib 完成。
+/// 首先判断 sys_waitpid 是否会返回 -1 ，这取决于当前进程是否有一个符合要求的子进程。
+/// 当传入的 pid 为 -1 的时候，任何一个子进程都算是符合要求；但 pid 不为 -1 的时候，则只有 PID 恰好与 pid 相同的子进程才算符合条件。
+/// 我们简单通过迭代器即可完成判断。
+/// 再判断符合要求的子进程中是否有僵尸进程。如果找不到的话直接返回 -2 ，否则进行下一步处理：
+/// 我们将子进程从向量中移除并置于当前上下文中，当它所在的代码块结束，
+/// 这次引用变量的生命周期结束，子进程进程控制块的引用计数将变为 0 ，
+/// 内核将彻底回收掉它占用的所有资源，包括内核栈、它的 PID 、存放页表的那些物理页帧等等。
+/// 获得子进程退出码后，考虑到应用传入的指针指向应用地址空间，我们还需要手动查页表找到对应物理内存中的位置。
+/// translated_refmut 的实现可以在 os/src/mm/page_table.rs 中找到。
 pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     trace!("kernel::pid[{}] sys_waitpid [{}]", current_task().unwrap().pid.0, pid);
     let task = current_task().unwrap();

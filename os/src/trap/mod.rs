@@ -54,6 +54,9 @@ pub fn enable_timer_interrupt() {
 }
 
 /// trap handler
+/// 这里的 cx 是当前应用的 Trap 上下文的可变引用，我们需要通过查页表找到它具体被放在哪个物理页帧上， 并构造相同的虚拟地址来在内核中访问它。
+/// 对于系统调用 sys_exec 来说，调用它之后， trap_handler 原来上下文中的 cx 失效了，因为它是就原来的地址空间而言的。
+/// 为了能够处理类似的这种情况，我们在 syscall 返回之后需要重新获取 cx ，目前的实现如下：
 #[no_mangle]
 pub fn trap_handler() -> ! {
     set_kernel_trap_entry();
