@@ -184,6 +184,8 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
 }
 
 /// Translate&Copy a ptr[u8] array end with `\0` to a `String` Vec through page table
+/// translated_str 用来从用户地址空间中查找字符串，其原理就是逐字节查页表直到发现一个 \0 为止。
+/// 为什么要逐字节查页表？ 因为内核不知道字符串的长度，且字符串可能是跨物理页的。
 pub fn translated_str(token: usize, ptr: *const u8) -> String {
     let page_table = PageTable::from_token(token);
     let mut string = String::new();

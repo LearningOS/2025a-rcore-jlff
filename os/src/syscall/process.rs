@@ -35,7 +35,13 @@ pub fn sys_getpid() -> isize {
     trace!("kernel: sys_getpid pid:{}", current_task().unwrap().pid.0);
     current_task().unwrap().pid.0 as isize
 }
-
+// 在调用 sys_fork 之前，我们已经将当前进程 Trap 上下文中的 sepc 向后移动了 4 字节，
+// 使得它回到用户态之后会从 ecall 的下一条指令开始执行。
+// 之后，当我们复制地址空间时，子进程地址空间 Trap 上下文的 sepc 也是移动之后的值，我们无需再进行修改。
+// 父子进程回到用户态的瞬间都处于刚刚从一次系统调用返回的状态，但二者返回值不同。
+// 第 8~11 行我们将子进程的 Trap 上下文中用来存放系统调用返回值的 a0 寄存器修改为 0 ，
+// 而父进程系统调用的返回值会在 syscall 返回之后再设置为 sys_fork 的返回值。
+// 这就做到了父进程 fork 的返回值为子进程的 PID ，而子进程的返回值为 0。
 pub fn sys_fork() -> isize {
     trace!("kernel:pid[{}] sys_fork", current_task().unwrap().pid.0);
     let current_task = current_task().unwrap();
@@ -143,12 +149,56 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
+/// spawn 系统调用定义( 标准spawn看这里 )：
+
+// fn sys_spawn(path: *const u8) -> isize
+// syscall ID: 400
+
+// 功能：新建子进程，使其执行目标程序。
+
+// 说明：成功返回子进程id，否则返回 -1。
+
+// 可能的错误：
+// 无效的文件名。
+// 虽然测例很简单，但提醒读者 spawn 不必 像 fork 一样复制父进程的地址空间。
+pub fn sys_spawn(path: *const u8) -> isize {
     trace!(
-        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_spawn",
         current_task().unwrap().pid.0
     );
-    -1
+    let token = current_user_token();
+    let path = translated_str(token, path);
+    if let Some(data) = get_app_data_by_name(path.as_str()) {
+        let current_task = current_task().unwrap();
+        let new_task = current_task.spawn(data);
+        let new_pid = new_task.pid.0;
+        add_task(new_task);
+        trace!(
+            "kernel:new pid[{}] sys_spawn",
+            new_pid
+        );
+        return new_pid as isize
+    } else {
+        return -1
+    }
+    //let current_task = current_task().unwrap();
+    //let new_task = current_task.spawn();
+    //let new_pid = new_task.pid.0;
+    // modify trap context of new_task, because it returns immediately after switching
+    // let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+    // // we do not have to move to next instruction since we have done it before
+    // // for child process, fork returns 0
+    // trap_cx.x[10] = 0;
+    // // add new task to scheduler
+    // add_task(new_task);
+    // new_pid as isize
+    // // let child: isize = ;
+    // // if child == 0 {
+    // //     sys_exec(_path);
+    // // }
+    // // // else  
+    // // //     return child
+    // // -1
 }
 
 // YOUR JOB: Set task priority.
