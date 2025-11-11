@@ -2,7 +2,7 @@
 use alloc::sync::Arc;
 
 use crate::{
-    config::PAGE_SIZE, loader::get_app_data_by_name, mm::{MapPermission, translated_refmut, translated_str}, task::{
+    config::PAGE_SIZE, loader::get_app_data_by_name, mm::{MapPermission, VirtAddr, translated_refmut, translated_str}, task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
     }
@@ -186,10 +186,11 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
         return -1
     } 
 
-    if ! current_task().unwrap().inner_exclusive_access().memory_set.can_munmap(start, len) {
+    if !current_task().unwrap().inner_exclusive_access().memory_set.can_munmap(start, len) {
         return -1
     }
-    current_task().unwrap().inner_exclusive_access().memory_set.remove_area_with_start_vpn(start.into());
+    let addr:VirtAddr = VirtAddr::from(start);
+    current_task().unwrap().inner_exclusive_access().memory_set.remove_area_with_start_vpn(addr.into());
     0
 }
 
