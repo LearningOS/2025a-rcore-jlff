@@ -319,6 +319,50 @@ impl MemorySet {
             false
         }
     }
+
+    fn addr_in_range(&self, addr:usize, len:usize, range: VPNRange) -> bool {
+        info!("addr_in_range?: {:#x}, {:#x} [{:#x}, {:#x})", 
+                addr, 
+                len,
+                usize::from(range.get_start()), 
+                usize::from(range.get_end()));
+        addr < VirtAddr::from(range.get_end()).into() &&
+        addr + len >= VirtAddr::from(range.get_start()).into()
+    }
+    /// 
+    pub fn is_mapped(&self, start: usize, len:usize) -> bool {
+        let count = self.areas.iter().find(|area| 
+            self.addr_in_range(start, len, area.vpn_range)
+        )
+        .into_iter()
+        .count();
+        info!("count {}", count);
+        count > 0
+    }
+    
+    ///
+    fn addr_in_range_unmap(&self, addr:usize, len:usize, range: VPNRange) -> bool {
+        info!("addr_in_range?: {:#x}, {:#x} [{:#x}, {:#x})", 
+                addr, 
+                len,
+                usize::from(range.get_start()), 
+                usize::from(range.get_end()));
+        addr >= VirtAddr::from(range.get_start()).into() &&
+        addr + len <= VirtAddr::from(range.get_end()).into()
+    }
+    ///
+    pub fn can_munmap(&self, start: usize, len:usize) -> bool {
+        let count = self.areas.
+        iter().
+        find(|area| 
+            self.addr_in_range_unmap(start, len, area.vpn_range)
+        )
+        .into_iter()
+        .count();
+        info!("count {}", count);
+        count > 0
+    }
+
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
