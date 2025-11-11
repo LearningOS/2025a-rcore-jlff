@@ -9,6 +9,7 @@ use crate::{
         suspend_current_and_run_next,
     },
 };
+use crate::timer::get_time_us;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -125,12 +126,27 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_get_time",
         current_task().unwrap().pid.0
     );
-    -1
+    let us = get_time_us();
+    // let page_table : PageTable = PageTable::from_token(current_user_token());
+    // let addr:usize = page_table.translate_va(_ts).unwrap().into();
+
+    // unsafe {
+    //     let address: *mut TimeVal = addr as *mut TimeVal;
+    //     *address = TimeVal {
+    //         sec: us / 1_000_000,
+    //         usec: us % 1_000_000,
+    //     };
+    // }
+    *translated_refmut(current_user_token(), ts) = TimeVal {
+            sec: us / 1_000_000,
+            usec: us % 1_000_000,
+    };
+    0
 }
 
 /// YOUR JOB: Implement mmap.
