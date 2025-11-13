@@ -71,6 +71,8 @@ pub struct TaskControlBlockInner {
 
     /// prio
     pub prio: isize,
+    /// for schedle
+    pub stride: isize,
 }
 
 impl TaskControlBlockInner {
@@ -122,6 +124,7 @@ impl TaskControlBlock {
                     heap_bottom: user_sp,
                     program_brk: user_sp,
                     prio: DEFAULT_TASK_PRIORITY,
+                    stride : 0,
                 })
             },
         };
@@ -203,6 +206,7 @@ impl TaskControlBlock {
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
                     prio: DEFAULT_TASK_PRIORITY,
+                    stride: 0,
                 })
             },
         });
@@ -263,6 +267,7 @@ impl TaskControlBlock {
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
                     prio: DEFAULT_TASK_PRIORITY,
+                    stride:0,
                 })
             },
         });

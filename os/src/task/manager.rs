@@ -3,6 +3,7 @@ use super::TaskControlBlock;
 use crate::sync::UPSafeCell;
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
+// use alloc::task;
 use lazy_static::*;
 ///A array of `TaskControlBlock` that is thread-safe
 pub struct TaskManager {
@@ -23,7 +24,25 @@ impl TaskManager {
     }
     /// Take a process out of the ready queue
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
-        self.ready_queue.pop_front()
+        //info!("fetch");
+        //self.ready_queue.pop_front();
+        let mut min_index = 0;
+        let mut min_stride = isize::MAX;
+        for (index, tcb) in self.ready_queue.iter().enumerate() {
+            if tcb.inner_exclusive_access().stride < min_stride {
+                min_stride = tcb.inner_exclusive_access().stride;
+                min_index = index;
+            }
+        }
+        {
+            let mut task_inner = self.ready_queue.get(min_index)?.inner_exclusive_access();
+            task_inner.stride += crate::config::BIG_STRIDE / task_inner.prio;
+            //info!("stride {}, pid {}, prio {}", task_inner.stride, self.ready_queue.get(min_index)?.getpid(), task_inner.prio);
+        }
+        //info!("minindex {}", min_index);
+        self.ready_queue.remove(min_index)
+        //task.unwrap().inner_exclusive_access()
+
     }
 }
 
