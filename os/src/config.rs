@@ -22,4 +22,7 @@ pub const CLOCK_FREQ: usize = 12500000;
 /// the physical memory end
 pub const MEMORY_END: usize = 0x88000000;
 /// The base address of control registers in Virtio_Block device
+/// 内存映射 I/O (MMIO, Memory-Mapped I/O) 指通过特定的物理内存地址来访问外设的设备寄存器。
+/// 查阅资料，可知 VirtIO 总线的 MMIO 物理地址区间为从 0x10001000 开头的 4KiB 。
+/// 在 config 子模块中我们硬编码 Qemu 上的 VirtIO 总线的 MMIO 地址区间（起始地址，长度）。
 pub const MMIO: &[(usize, usize)] = &[(0x10001000, 0x1000)];

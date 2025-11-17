@@ -21,6 +21,7 @@ type DataBlock = [u8; BLOCK_SZ];
 /// An easy fs over a block device
 impl EasyFileSystem {
     /// A data block of block size
+    /// 通过 create 方法可以在块设备上创建并初始化一个 easy-fs 文件系统：
     pub fn create(
         block_device: Arc<dyn BlockDevice>,
         total_blocks: u32,
@@ -82,6 +83,7 @@ impl EasyFileSystem {
         Arc::new(Mutex::new(efs))
     }
     /// Open a block device as a filesystem
+    /// 
     pub fn open(block_device: Arc<dyn BlockDevice>) -> Arc<Mutex<Self>> {
         // read SuperBlock
         get_block_cache(0, Arc::clone(&block_device))
@@ -104,6 +106,11 @@ impl EasyFileSystem {
             })
     }
     /// Get the root inode of the filesystem
+    /// 文件系统的使用者在通过 EasyFileSystem::open 从装载了 easy-fs 镜像的块设备上打开 easy-fs 之后，
+    /// 要做的第一件事情就是获取根目录的 Inode 。
+    /// 因为我们目前仅支持绝对路径，对于任何文件/目录的索引都必须从根目录开始向下逐级进行。
+    /// 等到索引完成之后，我们才能对文件/目录进行操作。
+    /// 事实上 EasyFileSystem 提供了另一个名为 root_inode 的方法来获取根目录的 Inode :
     pub fn root_inode(efs: &Arc<Mutex<Self>>) -> Inode {
         let block_device = Arc::clone(&efs.lock().block_device);
         // acquire efs lock temporarily

@@ -17,6 +17,13 @@ use lazy_static::*;
 /// inode in memory
 /// A wrapper around a filesystem inode
 /// to implement File trait atop
+/// 在本章的第一小节我们介绍过，站在用户的角度看来，在一个进程中可以使用多种不同的标志来打开一个文件，
+/// 这会影响到打开的这个文件可以用何种方式被访问。
+/// 此外，在连续调用 sys_read/write 读写一个文件的时候，
+/// 我们知道进程中也存在着一个文件读写的当前偏移量，它也随着文件读写的进行而被不断更新。
+/// 这些用户视角中的文件系统抽象特征需要内核来实现，
+/// 与进程有很大的关系，而 easy-fs 文件系统不必涉及这些与进程结合紧密的属性。
+/// 因此，我们需要将 easy-fs 提供的 Inode 加上上述信息，进一步封装为 OS 中的索引节点 OSInode ：
 pub struct OSInode {
     readable: bool,
     writable: bool,
@@ -55,6 +62,7 @@ impl OSInode {
     }
 }
 
+// 为了使用 easy-fs 提供的抽象，内核需要进行一些初始化操作。我们需要从块设备 BLOCK_DEVICE 上打开文件系统，并从文件系统中获取根目录的 inode 。
 lazy_static! {
     pub static ref ROOT_INODE: Arc<Inode> = {
         let efs = EasyFileSystem::open(BLOCK_DEVICE.clone());
@@ -63,6 +71,8 @@ lazy_static! {
 }
 
 /// List all apps in the root directory
+/// 这之后就可以使用根目录的 inode ROOT_INODE ，在内核中调用 easy-fs 的相关接口了。
+/// 例如，在文件系统初始化完毕之后，调用 list_apps 函数来打印所有可用应用的文件名：
 pub fn list_apps() {
     println!("/**** APPS ****");
     for app in ROOT_INODE.ls() {
@@ -125,6 +135,7 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
     }
 }
 
+/// OSInode 也是要一种要放到进程文件描述符表中，通过 sys_read/write 进行读写的文件，我们需要为它实现 File Trait ：
 impl File for OSInode {
     fn readable(&self) -> bool {
         self.readable

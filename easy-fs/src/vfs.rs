@@ -59,6 +59,14 @@ impl Inode {
         None
     }
     /// Find inode under current inode by name
+    /// 为了尽可能简化我们的实现，所有的文件都在根目录下面。
+    /// 于是，我们不必实现目录索引。
+    /// 文件索引的查找比较简单，仅需在根目录的目录项中根据文件名找到文件的 inode 编号即可。
+    /// 由于没有子目录的存在，这个过程只会进行一次。
+    /// find 方法只会被根目录 Inode 调用，文件系统中其他文件的 Inode 不会调用这个方法。
+    /// 它首先调用 find_inode_id 方法尝试从根目录的 DiskInode 上找到要索引的文件名对应的 inode 编号。
+    /// 这就需要将根目录内容中的所有目录项都读到内存进行逐个比对。
+    /// 如果能够找到的话， find 方法会根据查到 inode 编号对应生成一个 Inode 用于后续对文件的访问。
     pub fn find(&self, name: &str) -> Option<Arc<Inode>> {
         let fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {
@@ -91,6 +99,10 @@ impl Inode {
         disk_inode.increase_size(new_size, v, &self.block_device);
     }
     /// Create inode under current inode by name
+    /// create 方法可以在根目录下创建一个文件，该方法只有根目录的 Inode 会调用：
+    /// 第 6~13 行，检查文件是否已经在根目录下，如果找到的话返回 None ；
+    /// 第 14~25 行，为待创建文件分配一个新的 inode 并进行初始化；
+    /// 第 26~39 行，将待创建文件的目录项插入到根目录的内容中使得之后可以索引过来。
     pub fn create(&self, name: &str) -> Option<Arc<Inode>> {
         let mut fs = self.fs.lock();
         let op = |root_inode: &DiskInode| {
@@ -139,6 +151,7 @@ impl Inode {
         // release efs lock automatically by compiler
     }
     /// List inodes under current inode
+    /// ls 方法可以收集根目录下的所有文件的文件名并以向量的形式返回，这个方法只有根目录的 Inode 才会调用：
     pub fn ls(&self) -> Vec<String> {
         let _fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {

@@ -137,6 +137,8 @@ impl DiskInode {
         Self::total_blocks(new_size) - Self::total_blocks(self.size)
     }
     /// Get id of block given inner id
+    /// get_block_id 方法体现了 DiskInode 最重要的数据块索引功能，
+    /// 它可以从索引中查到它自身用于保存文件内容的第 block_id 个数据块的块编号，这样后续才能对这个数据块进行访问：
     pub fn get_block_id(&self, inner_id: u32, block_device: &Arc<dyn BlockDevice>) -> u32 {
         let inner_id = inner_id as usize;
         if inner_id < INODE_DIRECT_COUNT {
@@ -162,6 +164,10 @@ impl DiskInode {
         }
     }
     /// Inncrease the size of current disk inode
+    /// 其中 new_size 表示容量扩充之后的文件大小；
+    /// new_blocks 是一个保存了本次容量扩充所需块编号的向量，
+    /// 这些块都是由上层的磁盘块管理器负责分配的。
+    ///  increase_size 的实现有些复杂，在这里不详细介绍。大致的思路是按照直接索引、一级索引再到二级索引的顺序进行扩充。
     pub fn increase_size(
         &mut self,
         new_size: u32,
@@ -309,6 +315,17 @@ impl DiskInode {
         v
     }
     /// Read data from current disk inode
+    /// 它的含义是：将文件内容从 offset 字节开始的部分读到内存中的缓冲区 buf 中，
+    /// 并返回实际读到的字节数。
+    /// 如果文件剩下的内容还足够多，那么缓冲区会被填满；
+    /// 不然的话文件剩下的全部内容都会被读到缓冲区中。
+    /// 具体实现上有很多细节，但大致的思路是遍历位于字节区间 start,end 中间的那些块，
+    /// 将它们视为一个 DataBlock （也就是一个字节数组），
+    /// 并将其中的部分内容复制到缓冲区 buf 中适当的区域。
+    /// start_block 维护着目前是文件内部第多少个数据块，
+    /// 需要首先调用 get_block_id 从索引中查到这个数据块在块设备中的块编号，
+    /// 随后才能传入 get_block_cache 中将正确的数据块缓存到内存中进行访问。
+    /// 在第 14 行进行了简单的边界条件判断，如果要读取的内容超出了文件的范围那么直接返回 0 表示读取不到任何内容。
     pub fn read_at(
         &self,
         offset: usize,

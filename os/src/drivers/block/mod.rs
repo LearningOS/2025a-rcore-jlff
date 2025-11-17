@@ -8,6 +8,16 @@ use alloc::sync::Arc;
 use easy_fs::BlockDevice;
 use lazy_static::*;
 
+/// 针对内核所要运行在的 qemu 或 k210 平台，
+/// 我们需要将平台上的块设备驱动起来并实现 easy-fs 所需的 BlockDevice Trait ，这样 easy-fs 才能将该块设备用作 easy-fs 镜像的载体。
+/// 
+/// qemu 和 k210 平台上的块设备是不同的。
+/// 在 qemu 上，我们使用 VirtIOBlock 访问 VirtIO 块设备；
+/// 而在 k210 上，我们使用 SDCardWrapper 来访问插入 k210 开发板上真实的 microSD 卡，
+/// 它们都实现了 easy-fs 要求的 BlockDevice Trait 。
+/// 通过 #[cfg(feature)] 可以在编译的时候根据编译参数调整 BlockDeviceImpl 具体为哪个块设备，
+/// 之后将它全局实例化为 BLOCK_DEVICE ，使得内核的其他模块可以访问。
+/// 
 type BlockDeviceImpl = virtio_blk::VirtIOBlock;
 
 lazy_static! {

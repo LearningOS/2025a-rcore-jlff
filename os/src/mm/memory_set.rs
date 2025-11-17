@@ -160,6 +160,7 @@ impl MemorySet {
             None,
         );
         info!("mapping memory-mapped registers");
+        // 在创建内核地址空间的时候需要建立页表映射：
         for pair in MMIO {
             memory_set.push(
                 MapArea::new(
