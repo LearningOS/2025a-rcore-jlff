@@ -7,6 +7,13 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use spin::{Mutex, MutexGuard};
 /// Virtual filesystem layer over easy-fs
+/// EasyFileSystem 实现了我们设计的磁盘布局并能够将所有块有效的管理起来。
+/// 但是对于文件系统的使用者而言，他们往往不关心磁盘布局是如何实现的，而是更希望能够直接看到目录树结构中逻辑上的文件和目录。
+/// 为此我们设计索引节点 Inode 暴露给文件系统的使用者，让他们能够直接对文件和目录进行操作。 
+/// Inode 和 DiskInode 的区别从它们的名字中就可以看出： DiskInode 放在磁盘块中比较固定的位置，而 Inode 是放在内存中的记录文件索引节点信息的数据结构。
+/// 
+/// block_id 和 block_offset 记录该 Inode 对应的 DiskInode 保存在磁盘上的具体位置方便我们后续对它进行访问。 
+/// fs 是指向 EasyFileSystem 的一个指针，因为对 Inode 的种种操作实际上都是要通过底层的文件系统来完成。
 pub struct Inode {
     block_id: usize,
     block_offset: usize,
@@ -16,6 +23,10 @@ pub struct Inode {
 
 impl Inode {
     /// Create a vfs inode
+    /// 在 root_inode 中，主要是在 Inode::new 的时候将传入的 inode_id 设置为 0 ，
+    /// 因为根目录对应于文件系统中第一个分配的 inode ，因此它的 inode_id 总会是 0 。
+    /// 同时在设计上，我们不会在 Inode::new 中尝试获取整个 EasyFileSystem 的锁来查询 inode 在块设备中的位置，
+    /// 而是在调用它之前预先查询并作为参数传过去。
     pub fn new(
         block_id: u32,
         block_offset: usize,
@@ -30,6 +41,8 @@ impl Inode {
         }
     }
     /// Call a function over a disk inode to read it
+    /// 仿照 BlockCache::read/modify ，我们可以设计两个方法来简化对于 Inode 对应的磁盘上的 DiskInode 的访问流程，
+    /// 而不是每次都需要 get_block_cache.lock.read/modify
     fn read_disk_inode<V>(&self, f: impl FnOnce(&DiskInode) -> V) -> V {
         get_block_cache(self.block_id, Arc::clone(&self.block_device))
             .lock()
@@ -42,6 +55,7 @@ impl Inode {
             .modify(self.block_offset, f)
     }
     /// Find inode under a disk inode by name
+    /// disk_inode是根目录
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
         // assert it is a directory
         assert!(disk_inode.is_dir());
@@ -58,12 +72,18 @@ impl Inode {
         }
         None
     }
+
     /// Find inode under current inode by name
+    /// 
+    /// 文件索引
     /// 为了尽可能简化我们的实现，所有的文件都在根目录下面。
     /// 于是，我们不必实现目录索引。
     /// 文件索引的查找比较简单，仅需在根目录的目录项中根据文件名找到文件的 inode 编号即可。
     /// 由于没有子目录的存在，这个过程只会进行一次。
+    /// 
+    /// 
     /// find 方法只会被根目录 Inode 调用，文件系统中其他文件的 Inode 不会调用这个方法。
+    /// 
     /// 它首先调用 find_inode_id 方法尝试从根目录的 DiskInode 上找到要索引的文件名对应的 inode 编号。
     /// 这就需要将根目录内容中的所有目录项都读到内存进行逐个比对。
     /// 如果能够找到的话， find 方法会根据查到 inode 编号对应生成一个 Inode 用于后续对文件的访问。
@@ -169,11 +189,13 @@ impl Inode {
         })
     }
     /// Read data from current inode
+    /// 文件读写
     pub fn read_at(&self, offset: usize, buf: &mut [u8]) -> usize {
         let _fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| disk_inode.read_at(offset, buf, &self.block_device))
     }
     /// Write data to current inode
+    /// 文件读写
     pub fn write_at(&self, offset: usize, buf: &[u8]) -> usize {
         let mut fs = self.fs.lock();
         let size = self.modify_disk_inode(|disk_inode| {
@@ -196,4 +218,5 @@ impl Inode {
         });
         block_cache_sync_all();
     }
+
 }

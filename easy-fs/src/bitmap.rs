@@ -3,6 +3,7 @@ use alloc::sync::Arc;
 /// A bitmap block
 type BitmapBlock = [u64; 64];
 /// Number of bits in a block
+/// 512字节 4096比特
 const BLOCK_BITS: usize = BLOCK_SZ * 8;
 /// A bitmap
 pub struct Bitmap {

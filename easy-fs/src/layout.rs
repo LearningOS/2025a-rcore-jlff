@@ -79,6 +79,14 @@ type IndirectBlock = [u32; BLOCK_SZ / 4];
 /// A data block
 type DataBlock = [u8; BLOCK_SZ];
 /// A disk inode
+/// 每个文件/目录在磁盘上均以一个 DiskInode 的形式存储。
+/// 其中包含文件/目录的元数据： 
+/// size 表示文件/目录内容的字节数，
+/// type_ 表示索引节点的类型 DiskInodeType ，目前仅支持文件 File 和目录 Directory 两种类型。
+/// 其余的 direct/indirect1/indirect2 都是存储文件内容/目录内容的数据块的索引，这也是索引节点名字的由来。
+/// 为了充分利用空间，我们将 DiskInode 的大小设置为 128 字节，每个块正好能够容纳 4 个 DiskInode 。
+/// 在后续需要支持更多类型的元数据的时候，可以适当缩减直接索引 direct 的块数，
+/// 并将节约出来的空间用来存放其他元数据，仍可保证 DiskInode 的总大小为 128 字节
 #[repr(C)]
 pub struct DiskInode {
     pub size: u32,
@@ -108,6 +116,8 @@ impl DiskInode {
         self.type_ == DiskInodeType::File
     }
     /// Return block number correspond to size.
+    /// data_blocks 方法可以计算为了容纳自身 size 字节的内容需要多少个数据块。
+    /// 计算的过程只需用 size 除以每个块的大小 BLOCK_SZ 并向上取整。
     pub fn data_blocks(&self) -> u32 {
         Self::_data_blocks(self.size)
     }
@@ -115,6 +125,8 @@ impl DiskInode {
         (size + BLOCK_SZ as u32 - 1) / BLOCK_SZ as u32
     }
     /// Return number of blocks needed include indirect1/2.
+    /// 而 total_blocks 不仅包含数据块，还需要统计索引块。
+    /// 计算的方法也很简单，先调用 data_blocks 得到需要多少数据块，再根据数据块数目所处的区间统计索引块即可。
     pub fn total_blocks(size: u32) -> u32 {
         let data_blocks = Self::_data_blocks(size) as usize;
         let mut total = data_blocks as usize;
@@ -132,6 +144,8 @@ impl DiskInode {
         total as u32
     }
     /// Get the number of data blocks that have to be allocated given the new size of data
+    /// blocks_num_needed 可以计算将一个 DiskInode 的 size 扩容到 new_size 需要额外多少个数据和索引块。
+    /// 这只需要调用两次 total_blocks 作差即可。
     pub fn blocks_num_needed(&self, new_size: u32) -> u32 {
         assert!(new_size >= self.size);
         Self::total_blocks(new_size) - Self::total_blocks(self.size)
@@ -243,6 +257,7 @@ impl DiskInode {
 
     /// Clear size to zero and return blocks that should be deallocated.
     /// We will clear the block contents to zero later.
+    /// 有些时候我们还需要清空文件的内容并回收所有数据和索引块。
     pub fn clear_size(&mut self, block_device: &Arc<dyn BlockDevice>) -> Vec<u32> {
         let mut v: Vec<u32> = Vec::new();
         let mut data_blocks = self.data_blocks() as usize;
@@ -367,6 +382,10 @@ impl DiskInode {
     }
     /// Write data into current disk inode
     /// size must be adjusted properly beforehand
+    /// write_at 的实现思路基本上和 read_at 完全相同。但不同的是 write_at 不会出现失败的情况；
+    /// 只要 Inode 管理的数据块的大小足够，传入的整个缓冲区的数据都必定会被写入到文件中。
+    /// 当从 offset 开始的区间超出了文件范围的时候，就需要调用者在调用 write_at 之前提前调用 increase_size ，
+    /// 将文件大小扩充到区间的右端，保证写入的完整性。
     pub fn write_at(
         &mut self,
         offset: usize,
@@ -406,6 +425,14 @@ impl DiskInode {
     }
 }
 /// A directory entry
+/// 然而，目录的内容却需要遵从一种特殊的格式。
+/// 在我们的实现中，它可以看成一个目录项的序列，每个目录项都是一个二元组，
+/// 二元组的首个元素是目录下面的一个文件（或子目录）的文件名（或目录名），
+/// 另一个元素则是文件（或子目录）所在的索引节点编号。
+/// 目录项相当于目录树结构上的子树节点，我们需要通过它来一级一级的找到实际要访问的文件或目录。
+/// 目录项 DirEntry 的定义如下：
+/// 目录项 Dirent 最大允许保存长度为 27 的文件/目录名（数组 name 中最末的一个字节留给 \0 ），
+/// 且它自身占据空间 32 字节，每个数据块可以存储 16 个目录项。
 #[repr(C)]
 pub struct DirEntry {
     name: [u8; NAME_LENGTH_LIMIT + 1],
@@ -440,6 +467,7 @@ impl DirEntry {
         unsafe { core::slice::from_raw_parts_mut(self as *mut _ as usize as *mut u8, DIRENT_SZ) }
     }
     /// Get name of the entry
+    /// 此外，通过 name 和 inode_number 方法可以取出目录项中的内容：
     pub fn name(&self) -> &str {
         let len = (0usize..).find(|i| self.name[*i] == 0).unwrap();
         core::str::from_utf8(&self.name[..len]).unwrap()
