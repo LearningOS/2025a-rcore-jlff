@@ -5,7 +5,8 @@
 //! `UPSafeCell<OSInodeInner>` -> `OSInode`: for static `ROOT_INODE`,we
 //! need to wrap `OSInodeInner` into `UPSafeCell`
 use super::File;
-use crate::drivers::BLOCK_DEVICE;
+use crate::fs::StatMode;
+use crate::{drivers::BLOCK_DEVICE, fs::Stat};
 use crate::mm::UserBuffer;
 use crate::sync::UPSafeCell;
 use alloc::sync::Arc;
@@ -62,6 +63,11 @@ impl OSInode {
     }
 }
 
+// 在上一小节我们介绍过，为了使用 easy-fs 提供的抽象和服务，我们需要进行一些初始化操作才能成功将 easy-fs 接入到我们的内核中。按照前面总结的步骤：
+// 打开块设备。从本节前面可以看出，我们已经打开并可以访问装载有 easy-fs 文件系统镜像的块设备 BLOCK_DEVICE ；
+// 从块设备 BLOCK_DEVICE 上打开文件系统；
+// 从文件系统中获取根目录的 inode 。
+// 2-3 步我们在这里完成：
 // 为了使用 easy-fs 提供的抽象，内核需要进行一些初始化操作。我们需要从块设备 BLOCK_DEVICE 上打开文件系统，并从文件系统中获取根目录的 inode 。
 lazy_static! {
     pub static ref ROOT_INODE: Arc<Inode> = {
@@ -112,6 +118,10 @@ impl OpenFlags {
 }
 
 /// Open a file
+/// 这里主要是实现了 OpenFlags 各标志位的语义。
+/// 例如只有 flags 参数包含 CREATE 标志位才允许创建文件；
+/// 而如果文件已经存在，则清空文件的内容。
+/// 另外我们将从 OpenFlags 解析得到的读写相关权限传入 OSInode 的创建过程中。
 pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
     let (readable, writable) = flags.read_write();
     if flags.contains(OpenFlags::CREATE) {
@@ -133,6 +143,12 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
             Arc::new(OSInode::new(readable, writable, inode))
         })
     }
+}
+
+/// link
+pub fn link(old_name: &str, new_name:&str) -> isize{
+    trace!("inode link");
+    ROOT_INODE.link(old_name, new_name)
 }
 
 /// OSInode 也是要一种要放到进程文件描述符表中，通过 sys_read/write 进行读写的文件，我们需要为它实现 File Trait ：
@@ -166,5 +182,16 @@ impl File for OSInode {
             total_write_size += write_size;
         }
         total_write_size
+    }
+    fn stat(&self) -> Stat {
+        let inode = &self.inner.exclusive_access().inode;
+    
+        Stat{
+            dev: 0,
+            ino: 0,
+            mode: StatMode::FILE,
+            nlink:inode.nlink(),
+            pad: [0u64; 7],
+        }
     }
 }

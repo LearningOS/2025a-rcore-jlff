@@ -118,6 +118,60 @@ impl Inode {
         }
         disk_inode.increase_size(new_size, v, &self.block_device);
     }
+    /// nlink
+    pub fn nlink(&self) -> u32 {
+        self.read_disk_inode(|disk_inode| {
+            return disk_inode.nlink;
+        })
+    }
+
+    /// link
+    pub fn link(&self, old_name:&str, new_name:&str) -> isize {
+        log::trace!("link");
+        let mut file_inode_id : u32 = 0;
+        let mut fs = self.fs.lock();
+        // 检查已有新文件名
+        let op = |root_inode: &DiskInode| {
+            // assert it is a directory
+            assert!(root_inode.is_dir());
+            // has the file been created?
+            self.find_inode_id(new_name, root_inode)
+        };
+        if self.read_disk_inode(op).is_some() {
+            return -1;
+        }
+        // nlink ++
+        self.read_disk_inode(|disk_root_inode| {
+            self.find_inode_id(old_name, disk_root_inode).map(|old_inode_id| {
+                let (old_inode_block_id, old_inode_block_offset) = fs.get_disk_inode_pos(old_inode_id);
+                get_block_cache(old_inode_block_id as usize, Arc::clone(&self.block_device))
+                .lock()
+                .modify(old_inode_block_offset, |old_disk_inode: &mut DiskInode| {
+                    old_disk_inode.increase_link();
+                });
+                file_inode_id = old_inode_id;
+            });
+        });
+        // create dir entry with name and old_inode
+        assert!(file_inode_id != 0);
+        self.modify_disk_inode(|root_inode| {
+            // append file in the dirent
+            let file_count = (root_inode.size as usize) / DIRENT_SZ;
+            let new_size = (file_count + 1) * DIRENT_SZ;
+            // increase size
+            self.increase_size(new_size as u32, root_inode, &mut fs);
+            // write dirent
+            let dirent = DirEntry::new(new_name, file_inode_id);
+            root_inode.write_at(
+                file_count * DIRENT_SZ,
+                dirent.as_bytes(),
+                &self.block_device,
+            );
+        });
+        block_cache_sync_all();
+        0
+    }
+
     /// Create inode under current inode by name
     /// create 方法可以在根目录下创建一个文件，该方法只有根目录的 Inode 会调用：
     /// 第 6~13 行，检查文件是否已经在根目录下，如果找到的话返回 None ；
