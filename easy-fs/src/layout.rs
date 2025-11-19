@@ -112,14 +112,7 @@ impl DiskInode {
     pub fn increase_link(&mut self) {
         self.nlink += 1;
     }
-    /// decrease_link
-    pub fn decrease_link(&mut self) {
-        self.nlink -= 1;
-    }
-    /// nlink
-    pub fn nlink(&self) -> u32{
-        self.nlink
-    }
+
     /// Whether this inode is a directory
     pub fn is_dir(&self) -> bool {
         self.type_ == DiskInodeType::Directory

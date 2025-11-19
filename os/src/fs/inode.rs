@@ -154,7 +154,19 @@ pub fn link(old_name: &str, new_name:&str) -> isize{
 /// unlink
 pub fn unlink(path: &str) -> isize{
     trace!("inode unlink");
-    ROOT_INODE.unlink(path)
+    if let Some(inode) = ROOT_INODE.find(path) {
+        let nlink:u32 = inode.nlink();
+        assert!(nlink >= 1);
+        inode.set_nlink(nlink - 1);
+        if nlink == 1 {
+            trace!("inode unlink zero, remove data");
+            inode.clear();
+            ROOT_INODE.rm(path);
+        }
+        0
+    } else {
+        -1
+    }
 }
 
 /// OSInode 也是要一种要放到进程文件描述符表中，通过 sys_read/write 进行读写的文件，我们需要为它实现 File Trait ：

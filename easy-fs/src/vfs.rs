@@ -73,26 +73,29 @@ impl Inode {
         }
         None
     }
-
-    fn rm(&self, name: &str, disk_inode: &mut DiskInode) {
-        assert!(disk_inode.is_dir());
-        let file_count = (disk_inode.size as usize) / DIRENT_SZ;
-        let mut dirent = DirEntry::empty();
-        for i in 0..file_count {
-            assert_eq!(
-                disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device,),
-                DIRENT_SZ,
-            );
-            if dirent.name() == name {
-                log::trace!(" rm {}", dirent.name());
-                dirent.clear_name();
-                disk_inode.write_at(
-                    i * DIRENT_SZ,
-                    dirent.as_bytes(),
-                    &self.block_device,
+    /// rm file from ROOT inode
+    pub fn rm(&self, name: &str) {
+        self.modify_disk_inode(|disk_inode| {
+            assert!(disk_inode.is_dir());
+            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+            let mut dirent = DirEntry::empty();
+            for i in 0..file_count {
+                assert_eq!(
+                    disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device,),
+                    DIRENT_SZ,
                 );
+                if dirent.name() == name {
+                    log::trace!(" rm {}", dirent.name());
+                    dirent.clear_name();
+                    disk_inode.write_at(
+                        i * DIRENT_SZ,
+                        dirent.as_bytes(),
+                        &self.block_device,
+                    );
+                }
             }
-        }
+        });
+        block_cache_sync_all();
     }
 
     /// Find inode under current inode by name
@@ -147,33 +150,12 @@ impl Inode {
             return disk_inode.nlink;
         })
     }
-
-    /// unlink
-    pub fn unlink(&self, path: &str) -> isize {
-        log::trace!("unlink");
-        let mut need_rm = false;
-        let fs = self.fs.lock();
-        self.read_disk_inode(|disk_root_inode| {
-            self.find_inode_id(path, disk_root_inode).map(|old_inode_id| {
-                let (old_inode_block_id, old_inode_block_offset) = fs.get_disk_inode_pos(old_inode_id);
-                get_block_cache(old_inode_block_id as usize, Arc::clone(&self.block_device))
-                .lock()
-                .modify(old_inode_block_offset, |old_disk_inode: &mut DiskInode| {
-                    old_disk_inode.decrease_link();
-                    if old_disk_inode.nlink() == 0 {
-                        need_rm = true;
-                    }
-                });
-            });
+    /// set nlink
+    pub fn set_nlink(&self, nlink:u32) {
+        self.modify_disk_inode(|disk_inode| {
+            disk_inode.nlink = nlink;    
         });
-        if need_rm {
-            log::trace!("unlink nlink==0 , need to rm file");
-            self.modify_disk_inode(|disk_root_inode| {
-                self.rm(path, disk_root_inode); 
-            });
-        }
         block_cache_sync_all();
-        0
     }
 
     /// link
