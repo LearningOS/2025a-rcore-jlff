@@ -1,7 +1,7 @@
 //! File and filesystem-related syscalls
 
 
-use crate::fs::{OpenFlags, Stat, link, open_file};
+use crate::fs::{OpenFlags, Stat, link, unlink, open_file};
 use crate::mm::{UserBuffer, translated_byte_buffer, translated_refmut, translated_str};
 use crate::task::{current_task, current_user_token};
 
@@ -107,39 +107,19 @@ pub fn sys_close(fd: usize) -> isize {
 //         const FILE  = 0o100000;
 //     }
 // }
-pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
+pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
     trace!(
         "kernel:pid[{}] sys_fstat",
         current_task().unwrap().pid.0
     );
     let task = current_task().unwrap();
-        trace!(
-        "kernel:pid[{}] sys_fstat 1",
-        current_task().unwrap().pid.0
-    );
     let token = current_user_token();
     let inner = task.inner_exclusive_access();
-    if _fd >= inner.fd_table.len() {
+    if fd >= inner.fd_table.len() {
         return -1;
     }
-        trace!(
-        "kernel:pid[{}] sys_fstat 2",
-        current_task().unwrap().pid.0
-    );
-    if let Some(file) = &inner.fd_table[_fd] {
-        //let inode:&Arc<dyn Any + Send + Sync + 'static> = _file.as_ref();
-        //let _file = file.clone();
-    //         trace!(
-    //     "kernel:pid[{}] sys_fstat 3",
-    //     current_task().unwrap().pid.0
-    // );
-        let stat:Stat= file.stat();
-        //let pad = [0u64; 7];
-        *translated_refmut(token, _st) = stat;
-        //     trace!(
-        // "kernel:pid[{}] sys_fstat 4",
-        // current_task().unwrap().pid.0
-        //);
+    if let Some(file) = &inner.fd_table[fd] {
+        *translated_refmut(token, st) = file.stat();
         0
     } else {
         -1  // File descriptor not found
@@ -171,25 +151,19 @@ pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
 
 // 可能的错误
 // 链接同名文件
-pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {
+pub fn sys_linkat(old_name: *const u8, new_name: *const u8) -> isize {
     trace!(
         "kernel:pid[{}] sys_linkat",
         current_task().unwrap().pid.0
     );
     let token = current_user_token();
-
-    let old_path = translated_str(token, _old_name);
-    let new_path = translated_str(token, _new_name);
-    trace!(
-        "kernel:pid[{}] sys_linkat BEFORE LINK",
-        current_task().unwrap().pid.0
-    );
+    let old_path = translated_str(token, old_name);
+    let new_path = translated_str(token, new_name);
     if old_path == new_path {
         return -1;
     }
     assert!(old_path != new_path);
     link(old_path.as_str(), new_path.as_str())
-
 }
 
 /// YOUR JOB: Implement unlinkat.
@@ -215,10 +189,12 @@ pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {
 
 // 可能的错误
 // 文件不存在。
-pub fn sys_unlinkat(_name: *const u8) -> isize {
+pub fn sys_unlinkat(name: *const u8) -> isize {
     trace!(
-        "kernel:pid[{}] sys_unlinkat NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_unlinkat",
         current_task().unwrap().pid.0
     );
-    -1
+    let token = current_user_token();
+    let path = translated_str(token, name);
+    unlink(path.as_str())
 }

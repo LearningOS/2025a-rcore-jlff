@@ -118,6 +118,7 @@ impl Inode {
         }
         disk_inode.increase_size(new_size, v, &self.block_device);
     }
+
     /// nlink
     pub fn nlink(&self) -> u32 {
         self.read_disk_inode(|disk_inode| {
@@ -125,8 +126,26 @@ impl Inode {
         })
     }
 
+    /// unlink
+    pub fn unlink(&self, path: &str) -> isize {
+        log::trace!("unlink");
+        let fs = self.fs.lock();
+        self.read_disk_inode(|disk_root_inode| {
+            self.find_inode_id(path, disk_root_inode).map(|old_inode_id| {
+                let (old_inode_block_id, old_inode_block_offset) = fs.get_disk_inode_pos(old_inode_id);
+                get_block_cache(old_inode_block_id as usize, Arc::clone(&self.block_device))
+                .lock()
+                .modify(old_inode_block_offset, |old_disk_inode: &mut DiskInode| {
+                    old_disk_inode.decrease_link();
+                });
+            });
+        });
+        block_cache_sync_all();
+        0
+    }
+
     /// link
-    pub fn link(&self, old_name:&str, new_name:&str) -> isize {
+    pub fn link(&self, old_name: &str, new_name: &str) -> isize {
         log::trace!("link");
         let mut file_inode_id : u32 = 0;
         let mut fs = self.fs.lock();

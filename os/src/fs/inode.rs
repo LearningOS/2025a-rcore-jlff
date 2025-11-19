@@ -151,6 +151,12 @@ pub fn link(old_name: &str, new_name:&str) -> isize{
     ROOT_INODE.link(old_name, new_name)
 }
 
+/// unlink
+pub fn unlink(path: &str) -> isize{
+    trace!("inode unlink");
+    ROOT_INODE.unlink(path)
+}
+
 /// OSInode 也是要一种要放到进程文件描述符表中，通过 sys_read/write 进行读写的文件，我们需要为它实现 File Trait ：
 impl File for OSInode {
     fn readable(&self) -> bool {
