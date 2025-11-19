@@ -67,10 +67,32 @@ impl Inode {
                 DIRENT_SZ,
             );
             if dirent.name() == name {
+                log::trace!("found {}", name);
                 return Some(dirent.inode_id() as u32);
             }
         }
         None
+    }
+
+    fn rm(&self, name: &str, disk_inode: &mut DiskInode) {
+        assert!(disk_inode.is_dir());
+        let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+        let mut dirent = DirEntry::empty();
+        for i in 0..file_count {
+            assert_eq!(
+                disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device,),
+                DIRENT_SZ,
+            );
+            if dirent.name() == name {
+                log::trace!(" rm {}", dirent.name());
+                dirent.clear_name();
+                disk_inode.write_at(
+                    i * DIRENT_SZ,
+                    dirent.as_bytes(),
+                    &self.block_device,
+                );
+            }
+        }
     }
 
     /// Find inode under current inode by name
@@ -129,6 +151,7 @@ impl Inode {
     /// unlink
     pub fn unlink(&self, path: &str) -> isize {
         log::trace!("unlink");
+        let mut need_rm = false;
         let fs = self.fs.lock();
         self.read_disk_inode(|disk_root_inode| {
             self.find_inode_id(path, disk_root_inode).map(|old_inode_id| {
@@ -137,9 +160,18 @@ impl Inode {
                 .lock()
                 .modify(old_inode_block_offset, |old_disk_inode: &mut DiskInode| {
                     old_disk_inode.decrease_link();
+                    if old_disk_inode.nlink() == 0 {
+                        need_rm = true;
+                    }
                 });
             });
         });
+        if need_rm {
+            log::trace!("unlink nlink==0 , need to rm file");
+            self.modify_disk_inode(|disk_root_inode| {
+                self.rm(path, disk_root_inode); 
+            });
+        }
         block_cache_sync_all();
         0
     }

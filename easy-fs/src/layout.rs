@@ -116,6 +116,10 @@ impl DiskInode {
     pub fn decrease_link(&mut self) {
         self.nlink -= 1;
     }
+    /// nlink
+    pub fn nlink(&self) -> u32{
+        self.nlink
+    }
     /// Whether this inode is a directory
     pub fn is_dir(&self) -> bool {
         self.type_ == DiskInodeType::Directory
@@ -485,5 +489,9 @@ impl DirEntry {
     /// Get inode number of the entry
     pub fn inode_id(&self) -> u32 {
         self.inode_id
+    }
+    /// set name
+    pub fn clear_name(&mut self) {
+        self.name[0] = 0;
     }
 }
