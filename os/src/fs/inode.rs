@@ -148,7 +148,16 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
 /// link
 pub fn link(old_name: &str, new_name:&str) -> isize{
     trace!("inode link");
-    ROOT_INODE.link(old_name, new_name)
+    //ROOT_INODE.link(old_name, new_name)
+    if let Some(inode) = ROOT_INODE.find(old_name) {
+        let nlink:u32 = inode.nlink();
+        assert!(nlink >= 1);
+        inode.set_nlink(nlink + 1);
+        ROOT_INODE.link(new_name, inode.inode_no());
+        0
+    } else {
+        -1
+    }
 }
 
 /// unlink

@@ -108,11 +108,6 @@ impl DiskInode {
         self.indirect2 = 0;
         self.type_ = type_;
     }
-    /// increase_link
-    pub fn increase_link(&mut self) {
-        self.nlink += 1;
-    }
-
     /// Whether this inode is a directory
     pub fn is_dir(&self) -> bool {
         self.type_ == DiskInodeType::Directory

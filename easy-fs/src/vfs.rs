@@ -17,6 +17,7 @@ use spin::{Mutex, MutexGuard};
 pub struct Inode {
     block_id: usize,
     block_offset: usize,
+    inode_no :u32,
     fs: Arc<Mutex<EasyFileSystem>>,
     block_device: Arc<dyn BlockDevice>,
 }
@@ -30,12 +31,14 @@ impl Inode {
     pub fn new(
         block_id: u32,
         block_offset: usize,
+        inode_no: u32,
         fs: Arc<Mutex<EasyFileSystem>>,
         block_device: Arc<dyn BlockDevice>,
     ) -> Self {
         Self {
             block_id: block_id as usize,
             block_offset,
+            inode_no,
             fs,
             block_device,
         }
@@ -120,6 +123,7 @@ impl Inode {
                 Arc::new(Self::new(
                     block_id,
                     block_offset,
+                    inode_id,
                     self.fs.clone(),
                     self.block_device.clone(),
                 ))
@@ -158,10 +162,15 @@ impl Inode {
         block_cache_sync_all();
     }
 
+    /// inode number.
+    pub fn inode_no(&self) -> u32{
+        self.inode_no
+    }
+
     /// link
-    pub fn link(&self, old_name: &str, new_name: &str) -> isize {
+    pub fn link(&self, new_name: &str, file_inode_id: u32) -> isize {
         log::trace!("link");
-        let mut file_inode_id : u32 = 0;
+        // let mut file_inode_id : u32 = 0;
         let mut fs = self.fs.lock();
         // 检查已有新文件名
         let op = |root_inode: &DiskInode| {
@@ -173,18 +182,6 @@ impl Inode {
         if self.read_disk_inode(op).is_some() {
             return -1;
         }
-        // nlink ++
-        self.read_disk_inode(|disk_root_inode| {
-            self.find_inode_id(old_name, disk_root_inode).map(|old_inode_id| {
-                let (old_inode_block_id, old_inode_block_offset) = fs.get_disk_inode_pos(old_inode_id);
-                get_block_cache(old_inode_block_id as usize, Arc::clone(&self.block_device))
-                .lock()
-                .modify(old_inode_block_offset, |old_disk_inode: &mut DiskInode| {
-                    old_disk_inode.increase_link();
-                });
-                file_inode_id = old_inode_id;
-            });
-        });
         // create dir entry with name and old_inode
         assert!(file_inode_id != 0);
         self.modify_disk_inode(|root_inode| {
@@ -204,7 +201,6 @@ impl Inode {
         block_cache_sync_all();
         0
     }
-
     /// Create inode under current inode by name
     /// create 方法可以在根目录下创建一个文件，该方法只有根目录的 Inode 会调用：
     /// 第 6~13 行，检查文件是否已经在根目录下，如果找到的话返回 None ；
@@ -252,6 +248,7 @@ impl Inode {
         Some(Arc::new(Self::new(
             block_id,
             block_offset,
+            new_inode_id,
             self.fs.clone(),
             self.block_device.clone(),
         )))

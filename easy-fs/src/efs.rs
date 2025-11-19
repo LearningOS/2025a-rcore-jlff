@@ -116,7 +116,7 @@ impl EasyFileSystem {
         // acquire efs lock temporarily
         let (block_id, block_offset) = efs.lock().get_disk_inode_pos(0);
         // release efs lock
-        Inode::new(block_id, block_offset, Arc::clone(efs), block_device)
+        Inode::new(block_id, block_offset, 0, Arc::clone(efs), block_device)
     }
     /// Get inode by id
     /// 来根据 inode 编号获取该 inode 所在的块的编号以及块内偏移（单位：字节）
