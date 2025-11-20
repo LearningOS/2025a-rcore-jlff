@@ -215,7 +215,7 @@ impl File for OSInode {
     
         Stat{
             dev: 0,
-            ino: 0,
+            ino: inode.inode_no() as u64,
             mode: StatMode::FILE,
             nlink:inode.nlink(),
             pad: [0u64; 7],
