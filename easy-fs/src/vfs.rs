@@ -88,13 +88,18 @@ impl Inode {
                     DIRENT_SZ,
                 );
                 if dirent.name() == name {
-                    log::trace!(" rm {}", dirent.name());
-                    dirent.clear_name();
-                    disk_inode.write_at(
-                        i * DIRENT_SZ,
-                        dirent.as_bytes(),
-                        &self.block_device,
-                    );
+                    for j in i + 1..file_count {
+                        assert_eq!(
+                            disk_inode.read_at(DIRENT_SZ * j, dirent.as_bytes_mut(), &self.block_device,),
+                            DIRENT_SZ,
+                        );
+                        assert_eq!(
+                            disk_inode.write_at(DIRENT_SZ * (j - 1), dirent.as_bytes_mut(), &self.block_device,),
+                            DIRENT_SZ,
+                        );
+                    }
+                    disk_inode.size -= DIRENT_SZ as u32;
+                    break;
                 }
             }
         });
