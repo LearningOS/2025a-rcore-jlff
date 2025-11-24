@@ -5,6 +5,14 @@ use crate::{
 };
 use alloc::sync::Arc;
 /// thread create syscall
+/// 第二种创建线程的方式是通过 thread_create 系统调用。
+/// 重点是需要了解创建线程控制块，在线程控制块中初始化各个成员变量，建立好进程和线程的关系等。
+/// 只有建立好这些成员变量，才能给线程建立一个灵活方便的执行环境。
+/// 这里列出支持线程正确运行所需的重要的执行环境要素：
+// 线程的用户态栈：确保在用户态的线程能正常执行函数调用；
+// 线程的内核态栈：确保线程陷入内核后能正常执行函数调用；
+// 线程共享的跳板页和线程独占的 Trap 上下文：确保线程能正确的进行用户态与内核态间的切换；
+// 线程的任务上下文：线程在内核态的寄存器信息，用于线程切换。
 pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
     trace!(
         "kernel:pid[{}] tid[{}] sys_thread_create",
@@ -41,6 +49,9 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
         tasks.push(None);
     }
     tasks[new_task_tid] = Some(Arc::clone(&new_task));
+    // 第25~32行，初始化位于该线程在用户态地址空间中的 Trap 上下文：
+    // 设置线程的函数入口点和用户栈， 使得第一次进入用户态时能从线程起始位置开始正确执行；
+    // 设置好内核栈和陷入函数指针 trap_handler ， 保证在 Trap 的时候用户态的线程能正确进入内核态。
     let new_task_trap_cx = new_task_inner.get_trap_cx();
     *new_task_trap_cx = TrapContext::app_init_context(
         entry,

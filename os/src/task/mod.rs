@@ -172,6 +172,7 @@ lazy_static! {
     ///
     /// the name "initproc" may be changed to any other app name like "usertests",
     /// but we have user_shell, so we don't need to change it.
+    /// 创建进程的第一种方式是调用 ProcessControlBlock::new 创建初始进程 INITPROC ：
     pub static ref INITPROC: Arc<ProcessControlBlock> = {
         let inode = open_file("ch8b_initproc", OpenFlags::RDONLY).unwrap();
         let v = inode.read_all();

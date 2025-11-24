@@ -16,6 +16,8 @@ use alloc::vec::Vec;
 use core::cell::RefMut;
 
 /// Process Control Block
+/// 进程控制块由之前的 TaskControlBlock 变成新增的 ProcessControlBlock （简称 PCB ），
+/// 我们在其中保留进程的一些信息以及由进程下所有线程共享的一些资源。
 pub struct ProcessControlBlock {
     /// immutable
     pub pid: PidHandle,
@@ -90,6 +92,11 @@ impl ProcessControlBlock {
         self.inner.exclusive_access()
     }
     /// new process from elf file
+    /// 第 10 和 12 行分别创建进程 PCB 和主线程的 TCB ；
+    // 第 18~29 行获取所需的信息并填充主线程的 Trap 上下文；
+    // 第 32 行将主线程插入到进程的线程列表中。因为此时该列表为空，只需直接 push 即可；
+    // 第 34 行维护 PID-进程控制块映射。
+    // 第 36 行将主线程加入到任务管理器使得它可以被调度。
     pub fn new(elf_data: &[u8]) -> Arc<Self> {
         trace!("kernel: ProcessControlBlock::new");
         // memory_set with elf program headers/trampoline/trap context/user stack
