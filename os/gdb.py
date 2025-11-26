@@ -1,0 +1,6 @@
+gdb.execute('set print null-stop')
+gdb.execute('set print pretty on')
+gdb.execute('set print array on')
+gdb.execute('b *0x80200000')
+gdb.execute('b rust_main')
+gdb.execute('continue')
