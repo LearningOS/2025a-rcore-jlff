@@ -1,0 +1,5 @@
+gdb.execute('set pagination off')
+gdb.execute('set print pretty on')
+gdb.execute('b rust_main')
+gdb.execute('b os::task::task::TaskControlBlock::spawn')
+gdb.execute('continue')
