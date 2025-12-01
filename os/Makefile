@@ -49,9 +49,9 @@ $(KERNEL_BIN): kernel
 	@$(OBJCOPY) $(KERNEL_ELF) --strip-all -O binary $@
 
 fs-img: $(APPS)
-	@make -C ../user build MODE=$(MODE) TEST=$(TEST) CHAPTER=$(CHAPTER) BASE=$(CHAPTER)
+	@make -C ../user build MODE=release TEST=$(TEST) CHAPTER=$(CHAPTER) BASE=$(CHAPTER)
 	@rm -f $(FS_IMG)
-	@cd ../easy-fs-fuse && cargo run $(MODE_ARG) -- -s ../user/src/bin/ -t ../user/target/riscv64gc-unknown-none-elf/$(MODE)/
+	@cd ../easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../user/target/riscv64gc-unknown-none-elf/release/
 
 kernel:
 	@echo Platform: $(BOARD)
