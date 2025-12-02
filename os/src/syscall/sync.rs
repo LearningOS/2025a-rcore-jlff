@@ -96,7 +96,7 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
     drop(process_inner);
     drop(process);
     mutex.lock();
-    
+
     let process = current_process();
     let mut process_inner = process.inner_exclusive_access();
     if process_inner.is_enable_deadlock_detect {
@@ -119,10 +119,17 @@ pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
     );
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
+
+
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
     drop(process_inner);
     drop(process);
     mutex.unlock();
+    let process = current_process();
+    let mut process_inner = process.inner_exclusive_access();
+    if process_inner.is_enable_deadlock_detect {
+        process_inner.available[mutex_id] +=1;
+    }
     0
 }
 /// semaphore create syscall
