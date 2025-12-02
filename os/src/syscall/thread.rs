@@ -3,7 +3,7 @@ use crate::{
     task::{add_task, current_task, TaskControlBlock},
     trap::{trap_handler, TrapContext},
 };
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec::Vec};
 /// thread create syscall
 /// 第二种创建线程的方式是通过 thread_create 系统调用。
 /// 重点是需要了解创建线程控制块，在线程控制块中初始化各个成员变量，建立好进程和线程的关系等。
@@ -49,6 +49,17 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
         tasks.push(None);
     }
     tasks[new_task_tid] = Some(Arc::clone(&new_task));
+
+    if process_inner.is_enable_deadlock_detect {
+        // availave
+        // allocation
+        // need
+        process_inner.allocation.push(Vec::new());
+        process_inner.need.push(Vec::new());
+        
+    }
+
+
     // 第25~32行，初始化位于该线程在用户态地址空间中的 Trap 上下文：
     // 设置线程的函数入口点和用户栈， 使得第一次进入用户态时能从线程起始位置开始正确执行；
     // 设置好内核栈和陷入函数指针 trap_handler ， 保证在 Trap 的时候用户态的线程能正确进入内核态。

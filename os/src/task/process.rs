@@ -51,6 +51,23 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    /// enable_deadlock_detect
+    pub is_enable_deadlock_detect: bool,
+    /// 可利用资源向量 Available ：
+    /// 含有 m 个元素的一维数组，每个元素代表可利用的某一类资源的数目， 
+    /// 其初值是该类资源的全部可用数目，其值随该类资源的分配和回收而动态地改变。 
+    /// Available[j] = k，表示第 j 类资源的可用数量为 k。
+    pub available: Vec<usize>,
+    /// 分配矩阵 Allocation：n * m 矩阵，
+    /// 表示每类资源已分配给每个线程的资源数。 
+    /// Allocation[i,j] = g，则表示线程 i 当前己分得第 j 类资源的数量为 g。
+    pub allocation: Vec<Vec<usize>>,
+    /// 需求矩阵 Need：n * m 的矩阵，
+    /// 表示每个线程还需要的各类资源数量。
+    /// Need[i,j] = d，则表示线程 i 还需要第 j 类资源的数量为 d 。
+    pub need: Vec<Vec<usize>>,
+
+
 }
 
 impl ProcessControlBlockInner {
@@ -126,6 +143,10 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    is_enable_deadlock_detect : false,
+                    available : Vec::new(),
+                    allocation: Vec::new(),
+                    need: Vec::new(),
                 })
             },
         });
@@ -252,6 +273,10 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    is_enable_deadlock_detect: false,
+                    available: Vec::new(),
+                    allocation: Vec::new(),
+                    need: Vec::new(),
                 })
             },
         });
