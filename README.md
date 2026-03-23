@@ -29,8 +29,8 @@
 ## Setup
 
 ```bash
-$ git clone https://github.com/LearningOS/2025a-rcore-[YOUR_USER_NAME].git
-$ cd 2025a-rcore-[YOUR_USER_NAME]
+$ git clone https://github.com/LearningOS/2026s-rcore-[YOUR_USER_NAME].git
+$ cd 2026s-rcore-[YOUR_USER_NAME]
 ```
 
 ## Build & Run
@@ -78,3 +78,51 @@ $ cd ci-user && make test CHAPTER=$ID
 ```
 
 Notice: $ID is from [3,4,5,6,8]
+
+## CNB 评测提交指南 / CNB Submission Guide
+
+> 本仓库部署在 [CNB](https://cnb.cool) 平台，评测通过**提 PR** 触发，而非直接 push。
+> This repo is on [CNB](https://cnb.cool). Grading is triggered by **opening a Pull Request**, not by pushing directly.
+
+### 步骤 / Steps
+
+**1. Fork 本仓库**
+
+在 CNB 页面点击右上角 **Fork**，将本仓库 fork 到你自己的账号下。
+
+**2. Clone 你的 fork**
+
+```bash
+git clone https://cnb.cool/[YOUR_CNB_USERNAME]/rCore-Tutorial-2026S.git
+cd rCore-Tutorial-2026S
+```
+
+**3. 切换到对应章节分支并完成实验**
+
+```bash
+git checkout ch$ID      # $ID 为章节号，如 3、4、5、6、8
+# ... 编写代码 ...
+git add .
+git commit -m "finish ch$ID"
+git push origin ch$ID
+```
+
+**4. 在 CNB 上提 Pull Request**
+
+进入你 fork 的仓库页面 → 点击 **Pull Requests** → **New Pull Request**：
+- **源分支 (Source)**：你的 fork 的 `ch$ID` 分支
+- **目标分支 (Target)**：本仓库 `LearningOS/OSCamp-2026S/rCore-Tutorial-2026S` 的 `ch$ID` 分支
+
+提交 PR 后，CI 流水线将**自动运行测试**，满分通过后**自动上传分数**到 OpenCamp。
+
+> 评测章节 / Graded chapters：**ch3、ch4、ch5、ch6、ch8**
+> ch1、ch2 无需提交评测。
+
+### 查看评测结果
+
+在 PR 页面可以实时查看 CI 运行日志。测试通过后日志末尾会显示：
+
+```
+PASSED: full score X/X
+Uploading score for chapter N by user YOUR_USERNAME
+```

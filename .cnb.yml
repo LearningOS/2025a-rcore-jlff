@@ -1,0 +1,187 @@
+$:
+  vscode:
+    - runner:
+        cpus: 16
+      docker:
+        image: docker.cnb.cool/learningos/oscamp-2026s/rustlings
+      services:
+        - vscode
+        - docker
+
+  # 推送触发: owner 自测用，push 到 chN 分支时运行测试并上传分数
+  push:
+    - docker:
+        image: docker.cnb.cool/learningos/oscamp-2026s/rcore-tutorial-2026s
+      imports: https://cnb.cool/LearningOS/OSCamp-2026S/keys/-/blob/main/rcore-secrets.yml
+      stages:
+        - name: Run grading tests
+          script: |
+            ID=$(git rev-parse --abbrev-ref HEAD | grep -oP 'ch\K[0-9]')
+            echo "$ID" > /tmp/chapter_id
+            echo "Chapter: $ID"
+            qemu-system-riscv64 --version
+            rustup target add riscv64gc-unknown-none-elf
+            rm -rf ci-user
+            git clone https://github.com/LearningOS/rCore-Tutorial-Checker.git ci-user
+            git clone https://github.com/LearningOS/rCore-Tutorial-Test.git ci-user/user
+            cd ci-user && make test CHAPTER=$ID 2>&1 | tee ../output.txt
+            cat ../output.txt
+            POINTS=$(grep "Test passed" ../output.txt | grep -oP "\d+/\d+" | head -1)
+            echo "points=$POINTS"
+            if [ -z "$POINTS" ]; then echo "ERROR: No test results found"; exit 1; fi
+            GOT="${POINTS%%/*}"
+            TOTAL="${POINTS##*/}"
+            if [ "$GOT" != "$TOTAL" ]; then
+              echo "FAILED: points is not full score: $POINTS"
+              exit 1
+            fi
+            echo "PASSED: full score $POINTS"
+
+        - name: Update records and post score
+          script: |
+            ID=$(cat /tmp/chapter_id)
+            USER=$CNB_BUILD_USER
+            REPO_URL="${CNB_WEB_ENDPOINT}/LearningOS/OSCamp-2026S/rCore-Tutorial-2026S.git"
+
+            git config --global user.email "ci@cnb.cool"
+            git config --global user.name "CNB CI"
+
+            # Clone records branch (create if not exists)
+            if git ls-remote --exit-code "$REPO_URL" records > /dev/null 2>&1; then
+              git clone -b records --single-branch "$REPO_URL" records-dir
+            else
+              mkdir records-dir && cd records-dir
+              git init && git remote add origin "$REPO_URL"
+              git commit --allow-empty -m "init records"
+              git push origin HEAD:records
+              cd ..
+              git clone -b records --single-branch "$REPO_URL" records-dir
+            fi
+
+            cd records-dir
+            USERFILE="${USER}.json"
+            [ -f "$USERFILE" ] || echo '{}' > "$USERFILE"
+
+            # 记录当前章节通过
+            python3 -c "
+            import json
+            with open('$USERFILE') as f: d = json.load(f)
+            d['ch$ID'] = True
+            with open('$USERFILE', 'w') as f: json.dump(d, f)
+            "
+
+            # 计算累计分数
+            SCORE=$(python3 -c "import json; d=json.load(open('$USERFILE')); print(len(d)*100)")
+            echo "User $USER chapters: $(cat $USERFILE) => score=$SCORE/500"
+
+            git add "$USERFILE"
+            git commit -m "ch${ID} passed by $USER"
+
+            # 带重试的 push（防并发冲突）
+            for i in 1 2 3; do
+              git pull --rebase origin records && git push origin HEAD:records && break || sleep 3
+            done
+
+            cd ..
+
+            # 上传分数到 OpenCamp
+            echo "Uploading score $SCORE/500 for chapter $ID by user $USER"
+            curl -X POST "https://api.opencamp.cn/web/api/courseRank/createByThirdToken" \
+              -H 'accept: application/json;charset=utf-8' \
+              -H 'Content-Type: application/json' \
+              -H "token: $RCORE_TOKEN" \
+              -d "{\"channel\": \"cnb\", \"courseId\": $RCORE_COURSE_ID, \"ext\": \"{\\\"chapter\\\": \\\"ch${ID}\\\"}\", \"name\": \"$USER\", \"score\": $SCORE, \"totalScore\": 500}" \
+              --fail --show-error
+
+  # 评测触发: 向本仓库的 chN 分支提 PR 时自动运行测试并上传分数
+  pull_request.target:
+    - docker:
+        image: docker.cnb.cool/learningos/oscamp-2026s/rcore-tutorial-2026s
+      imports: https://cnb.cool/LearningOS/OSCamp-2026S/keys/-/blob/main/rcore-secrets.yml
+      stages:
+        - name: Fetch PR code
+          script: |
+            # Save chapter ID before detaching HEAD
+            ID=$(git rev-parse --abbrev-ref HEAD | grep -oP 'ch\K[0-9]')
+            echo "$ID" > /tmp/chapter_id
+            echo "Chapter: $ID"
+            git remote add source ${CNB_WEB_ENDPOINT}/${CNB_PULL_REQUEST_SLUG}.git
+            git fetch source $CNB_PULL_REQUEST_BRANCH
+            git checkout -f $CNB_PULL_REQUEST_SHA
+
+        - name: Run grading tests
+          script: |
+            ID=$(cat /tmp/chapter_id)
+            qemu-system-riscv64 --version
+            rustup target add riscv64gc-unknown-none-elf
+            rm -rf ci-user
+            git clone https://github.com/LearningOS/rCore-Tutorial-Checker.git ci-user
+            git clone https://github.com/LearningOS/rCore-Tutorial-Test.git ci-user/user
+            cd ci-user && make test CHAPTER=$ID 2>&1 | tee ../output.txt
+            cat ../output.txt
+            POINTS=$(grep "Test passed" ../output.txt | grep -oP "\d+/\d+" | head -1)
+            echo "points=$POINTS"
+            if [ -z "$POINTS" ]; then echo "ERROR: No test results found"; exit 1; fi
+            GOT="${POINTS%%/*}"
+            TOTAL="${POINTS##*/}"
+            if [ "$GOT" != "$TOTAL" ]; then
+              echo "FAILED: points is not full score: $POINTS"
+              exit 1
+            fi
+            echo "PASSED: full score $POINTS"
+
+        - name: Update records and post score
+          script: |
+            ID=$(cat /tmp/chapter_id)
+            USER=$CNB_BUILD_USER
+            REPO_URL="${CNB_WEB_ENDPOINT}/LearningOS/OSCamp-2026S/rCore-Tutorial-2026S.git"
+
+            git config --global user.email "ci@cnb.cool"
+            git config --global user.name "CNB CI"
+
+            # Clone records branch (create if not exists)
+            if git ls-remote --exit-code "$REPO_URL" records > /dev/null 2>&1; then
+              git clone -b records --single-branch "$REPO_URL" records-dir
+            else
+              mkdir records-dir && cd records-dir
+              git init && git remote add origin "$REPO_URL"
+              git commit --allow-empty -m "init records"
+              git push origin HEAD:records
+              cd ..
+              git clone -b records --single-branch "$REPO_URL" records-dir
+            fi
+
+            cd records-dir
+            USERFILE="${USER}.json"
+            [ -f "$USERFILE" ] || echo '{}' > "$USERFILE"
+
+            # 记录当前章节通过
+            python3 -c "
+            import json
+            with open('$USERFILE') as f: d = json.load(f)
+            d['ch$ID'] = True
+            with open('$USERFILE', 'w') as f: json.dump(d, f)
+            "
+
+            # 计算累计分数
+            SCORE=$(python3 -c "import json; d=json.load(open('$USERFILE')); print(len(d)*100)")
+            echo "User $USER chapters: $(cat $USERFILE) => score=$SCORE/500"
+
+            git add "$USERFILE"
+            git commit -m "ch${ID} passed by $USER"
+
+            # 带重试的 push（防并发冲突）
+            for i in 1 2 3; do
+              git pull --rebase origin records && git push origin HEAD:records && break || sleep 3
+            done
+
+            cd ..
+
+            # 上传分数到 OpenCamp
+            echo "Uploading score $SCORE/500 for chapter $ID by user $USER"
+            curl -X POST "https://api.opencamp.cn/web/api/courseRank/createByThirdToken" \
+              -H 'accept: application/json;charset=utf-8' \
+              -H 'Content-Type: application/json' \
+              -H "token: $RCORE_TOKEN" \
+              -d "{\"channel\": \"cnb\", \"courseId\": $RCORE_COURSE_ID, \"ext\": \"{\\\"chapter\\\": \\\"ch${ID}\\\"}\", \"name\": \"$USER\", \"score\": $SCORE, \"totalScore\": 500}" \
+              --fail --show-error
