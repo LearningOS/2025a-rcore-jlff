@@ -3,7 +3,7 @@ $:
     - runner:
         cpus: 16
       docker:
-        image: docker.cnb.cool/learningos/oscamp-2026s/rustlings
+        image: docker.cnb.cool/learningos/rcore-single
       services:
         - vscode
         - docker
@@ -11,7 +11,7 @@ $:
   # 推送触发: owner 自测用，push 到 chN 分支时运行测试并上传分数
   push:
     - docker:
-        image: docker.cnb.cool/learningos/oscamp-2026s/rcore-tutorial-2026s
+        image: docker.cnb.cool/learningos/rcore-single
       imports: https://cnb.cool/LearningOS/OSCamp-2026S/keys/-/blob/main/rcore-secrets.yml
       stages:
         - name: Run grading tests
@@ -96,7 +96,7 @@ $:
   # 评测触发: 向本仓库的 chN 分支提 PR 时自动运行测试并上传分数
   pull_request.target:
     - docker:
-        image: docker.cnb.cool/learningos/oscamp-2026s/rcore-tutorial-2026s
+        image: docker.cnb.cool/learningos/rcore-single
       imports: https://cnb.cool/LearningOS/OSCamp-2026S/keys/-/blob/main/rcore-secrets.yml
       stages:
         - name: Fetch PR code
