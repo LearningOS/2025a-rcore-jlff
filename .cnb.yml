@@ -41,21 +41,24 @@ $:
           script: |
             ID=$(cat /tmp/chapter_id)
             USER=$CNB_BUILD_USER
-            REPO_URL="${CNB_WEB_ENDPOINT}/LearningOS/OSCamp-2026S/rCore-Tutorial-2026S.git"
 
             git config --global user.email "ci@cnb.cool"
             git config --global user.name "CNB CI"
 
+            # 使用 CNB_PUSH_TOKEN 认证（需要在 rcore-secrets.yml 中配置）
+            REPO_URL_AUTH="https://oauth2:${CNB_PUSH_TOKEN}@cnb.cool/LearningOS/OSCamp-2026S/rCore-Tutorial-2026S.git"
+            REPO_URL_PUBLIC="https://cnb.cool/LearningOS/OSCamp-2026S/rCore-Tutorial-2026S.git"
+
             # Clone records branch (create if not exists)
-            if git ls-remote --exit-code "$REPO_URL" records > /dev/null 2>&1; then
-              git clone -b records --single-branch "$REPO_URL" records-dir
+            if git ls-remote --exit-code "$REPO_URL_PUBLIC" records > /dev/null 2>&1; then
+              git clone -b records --single-branch "$REPO_URL_AUTH" records-dir
             else
               mkdir records-dir && cd records-dir
-              git init && git remote add origin "$REPO_URL"
+              git init && git remote add origin "$REPO_URL_AUTH"
               git commit --allow-empty -m "init records"
               git push origin HEAD:records
               cd ..
-              git clone -b records --single-branch "$REPO_URL" records-dir
+              git clone -b records --single-branch "$REPO_URL_AUTH" records-dir
             fi
 
             cd records-dir
@@ -75,12 +78,17 @@ $:
             echo "User $USER chapters: $(cat $USERFILE) => score=$SCORE/500"
 
             git add "$USERFILE"
-            git commit -m "ch${ID} passed by $USER"
 
-            # 带重试的 push（防并发冲突）
-            for i in 1 2 3; do
-              git pull --rebase origin records && git push origin HEAD:records && break || sleep 3
-            done
+            # 检查是否有变更（防止重复提交同一章节导致失败）
+            if git diff --cached --quiet; then
+              echo "Chapter $ID already passed, skipping commit and push"
+            else
+              git commit -m "ch${ID} passed by $USER"
+              # 带重试的 push（防并发冲突）
+              for i in 1 2 3; do
+                git pull --rebase origin records && git push origin HEAD:records && break || sleep 3
+              done
+            fi
 
             cd ..
 
@@ -134,21 +142,24 @@ $:
           script: |
             ID=$(cat /tmp/chapter_id)
             USER=$CNB_BUILD_USER
-            REPO_URL="${CNB_WEB_ENDPOINT}/LearningOS/OSCamp-2026S/rCore-Tutorial-2026S.git"
 
             git config --global user.email "ci@cnb.cool"
             git config --global user.name "CNB CI"
 
+            # 使用 CNB_PUSH_TOKEN 认证（需要在 rcore-secrets.yml 中配置）
+            REPO_URL_AUTH="https://oauth2:${CNB_PUSH_TOKEN}@cnb.cool/LearningOS/OSCamp-2026S/rCore-Tutorial-2026S.git"
+            REPO_URL_PUBLIC="https://cnb.cool/LearningOS/OSCamp-2026S/rCore-Tutorial-2026S.git"
+
             # Clone records branch (create if not exists)
-            if git ls-remote --exit-code "$REPO_URL" records > /dev/null 2>&1; then
-              git clone -b records --single-branch "$REPO_URL" records-dir
+            if git ls-remote --exit-code "$REPO_URL_PUBLIC" records > /dev/null 2>&1; then
+              git clone -b records --single-branch "$REPO_URL_AUTH" records-dir
             else
               mkdir records-dir && cd records-dir
-              git init && git remote add origin "$REPO_URL"
+              git init && git remote add origin "$REPO_URL_AUTH"
               git commit --allow-empty -m "init records"
               git push origin HEAD:records
               cd ..
-              git clone -b records --single-branch "$REPO_URL" records-dir
+              git clone -b records --single-branch "$REPO_URL_AUTH" records-dir
             fi
 
             cd records-dir
@@ -168,12 +179,17 @@ $:
             echo "User $USER chapters: $(cat $USERFILE) => score=$SCORE/500"
 
             git add "$USERFILE"
-            git commit -m "ch${ID} passed by $USER"
 
-            # 带重试的 push（防并发冲突）
-            for i in 1 2 3; do
-              git pull --rebase origin records && git push origin HEAD:records && break || sleep 3
-            done
+            # 检查是否有变更（防止重复提交同一章节导致失败）
+            if git diff --cached --quiet; then
+              echo "Chapter $ID already passed, skipping commit and push"
+            else
+              git commit -m "ch${ID} passed by $USER"
+              # 带重试的 push（防并发冲突）
+              for i in 1 2 3; do
+                git pull --rebase origin records && git push origin HEAD:records && break || sleep 3
+              done
+            fi
 
             cd ..
 
