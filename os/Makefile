@@ -9,7 +9,7 @@ OFFLINE :=
 # BOARD
 BOARD := qemu
 SBI ?= rustsbi
-BOOTLOADER := ../bootloader/$(SBI)-$(BOARD).bin
+BOOTLOADER := ../bootloader/fw_jump.bin
 
 # Building mode argument
 ifeq ($(MODE), release)
