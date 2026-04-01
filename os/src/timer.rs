@@ -20,16 +20,17 @@ pub fn get_time() -> usize {
 /// get current time in milliseconds
 #[allow(dead_code)]
 pub fn get_time_ms() -> usize {
-    time::read()
+    (time::read() as u128 * MSEC_PER_SEC as u128/ CLOCK_FREQ as u128) as usize
 }
 
 /// get current time in microseconds
 #[allow(dead_code)]
 pub fn get_time_us() -> usize {
-    time::read()
+    ((time::read() as u128) * MICRO_PER_SEC as u128  / (CLOCK_FREQ as u128)) as usize
 }
 
 /// Set the next timer interrupt
 pub fn set_next_trigger() {
     set_timer(get_time() + CLOCK_FREQ / TICKS_PER_SEC);
+    //println!("time = {:#x}", get_time());
 }
