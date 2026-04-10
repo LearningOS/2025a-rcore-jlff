@@ -64,6 +64,7 @@ pub fn get_num_app() -> usize {
 /// Load nth user app at
 /// [APP_BASE_ADDRESS + n * APP_SIZE_LIMIT, APP_BASE_ADDRESS + (n+1) * APP_SIZE_LIMIT).
 pub fn load_apps() {
+    trace!("load_apps");
     extern "C" {
         fn _num_app();
     }
@@ -92,6 +93,7 @@ pub fn load_apps() {
     unsafe {
         asm!("fence.i");
     }
+    trace!("load_apps fin");
 }
 
 /// get app info with entry and sp and save `TrapContext` in kernel stack
